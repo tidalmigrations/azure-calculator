@@ -47,7 +47,7 @@ export class StorageCalculator implements PricingCalculator {
       console.log('💾 STORAGE DEBUG - Normalized region:', normalizedRegion);
       
       // Get storage prices from Azure API
-      const storageType = input.storageType || 'standard-hdd';
+      const storageType = input.storageType || 'premium-ssd';
       console.log('💾 STORAGE DEBUG - Using storage type:', storageType);
       
       const storagePrices = await azureClient.getStoragePrices(normalizedRegion, storageType);
@@ -97,6 +97,7 @@ export class StorageCalculator implements PricingCalculator {
         details: {
           storageType: this.getStorageTypeName(selectedStorage),
           monthlyRatePerGB,
+          hourlyRatePerGB: selectedStorage.unitPrice,
           capacityGB: input.storageCapacity,
           region: normalizedRegion,
           productName: selectedStorage.productName,
@@ -152,6 +153,17 @@ export class StorageCalculator implements PricingCalculator {
       data.diskType || 
       data.tier
     );
+
+    console.log('💾 STORAGE DEBUG - Parsed input:', {
+      region: String(region).trim(),
+      storageCapacity,
+      storageType,
+      rawStorageTypeFields: {
+        storageType: data.storageType,
+        diskType: data.diskType,
+        tier: data.tier
+      }
+    });
 
     return {
       region: String(region).trim(),
@@ -211,7 +223,40 @@ export class StorageCalculator implements PricingCalculator {
 
     console.log('💾 STORAGE DEBUG - selectBestStorage input:', storagePrices.length, 'prices');
 
-    // Filter for managed disks (most common)
+    // Priority 1: Premium SSD v2 (best performance and granular pricing)
+    const premiumSSDv2 = storagePrices.filter(storage => 
+      storage.productName.toLowerCase().includes('premium ssd v2') &&
+      storage.unitOfMeasure.toLowerCase().includes('gib')
+    );
+
+    console.log('💾 STORAGE DEBUG - Premium SSD v2 found:', premiumSSDv2.length);
+    if (premiumSSDv2.length > 0) {
+      console.log('💾 STORAGE DEBUG - Premium SSD v2 options:', premiumSSDv2.map(disk => ({
+        meterName: disk.meterName,
+        productName: disk.productName,
+        unitPrice: disk.unitPrice,
+        unitOfMeasure: disk.unitOfMeasure
+      })));
+
+      // Select the capacity-based pricing (not IOPS or throughput)
+      const capacityPricing = premiumSSDv2.filter(storage => 
+        storage.meterName.toLowerCase().includes('capacity') ||
+        storage.meterName.toLowerCase().includes('provisioned capacity')
+      );
+
+      if (capacityPricing.length > 0) {
+        const selected = capacityPricing[0]; // Should be consistent pricing
+        console.log('💾 STORAGE DEBUG - Selected Premium SSD v2:', {
+          meterName: selected.meterName,
+          productName: selected.productName,
+          unitPrice: selected.unitPrice,
+          unitOfMeasure: selected.unitOfMeasure
+        });
+        return selected;
+      }
+    }
+
+    // Priority 2: Filter for managed disks (traditional premium/standard disks)
     const managedDisks = storagePrices.filter(storage => 
       storage.productName.toLowerCase().includes('managed disk') ||
       storage.meterName.toLowerCase().includes('disk')
@@ -225,9 +270,7 @@ export class StorageCalculator implements PricingCalculator {
         unitPrice: disk.unitPrice,
         unitOfMeasure: disk.unitOfMeasure
       })));
-    }
 
-    if (managedDisks.length > 0) {
       // Sort by price (ascending) and return the most cost-effective
       const sorted = managedDisks.sort((a, b) => a.unitPrice - b.unitPrice);
       const selected = sorted[0];
@@ -240,7 +283,7 @@ export class StorageCalculator implements PricingCalculator {
       return selected;
     }
 
-    // Fallback: return the cheapest available storage
+    // Priority 3: Fallback - return the cheapest available storage
     console.log('💾 STORAGE DEBUG - No managed disks found, using cheapest available storage');
     const sorted = storagePrices.sort((a, b) => a.unitPrice - b.unitPrice);
     const selected = sorted[0];
@@ -298,7 +341,9 @@ export class StorageCalculator implements PricingCalculator {
   private getStorageTypeName(storagePrice: AzureRetailPrice): string {
     const productName = storagePrice.productName.toLowerCase();
     
-    if (productName.includes('premium')) {
+    if (productName.includes('premium ssd v2')) {
+      return 'Premium SSD v2';
+    } else if (productName.includes('premium')) {
       return 'Premium SSD';
     } else if (productName.includes('standard') && productName.includes('ssd')) {
       return 'Standard SSD';
@@ -316,10 +361,11 @@ export class StorageCalculator implements PricingCalculator {
     console.log('💾 STORAGE DEBUG - Using fallback pricing for input:', input);
     
     // Estimated pricing based on common storage types (as of 2024, per GB per month)
+    // Premium SSD v2: $0.000121/GiB/hour * 730 hours = $0.088/GB/month
     const fallbackRates = {
       'standard-hdd': 0.045,
       'standard-ssd': 0.075,
-      'premium-ssd': 0.135
+      'premium-ssd': 0.088  // Updated to Premium SSD v2 rate (0.000121 * 730)
     };
 
     const storageType = input.storageType || 'standard-hdd';
@@ -331,7 +377,8 @@ export class StorageCalculator implements PricingCalculator {
       monthlyRatePerGB,
       capacityGB: input.storageCapacity,
       totalCost,
-      allFallbackRates: fallbackRates
+      allFallbackRates: fallbackRates,
+      note: 'Premium SSD rate updated to Premium SSD v2 equivalent'
     });
 
     return {
@@ -339,6 +386,7 @@ export class StorageCalculator implements PricingCalculator {
       details: {
         storageType: this.getStorageTypeDisplayName(storageType),
         monthlyRatePerGB,
+        hourlyRatePerGB: monthlyRatePerGB / 730, // Convert monthly back to hourly for display
         capacityGB: input.storageCapacity,
         region: input.region,
         productName: `${this.getStorageTypeDisplayName(storageType)} Managed Disks (estimated)`,
@@ -354,7 +402,7 @@ export class StorageCalculator implements PricingCalculator {
     const displayNames = {
       'standard-hdd': 'Standard HDD',
       'standard-ssd': 'Standard SSD',
-      'premium-ssd': 'Premium SSD'
+      'premium-ssd': 'Premium SSD v2'  // Updated to reflect v2 as the default premium option
     };
     
     return displayNames[storageType as keyof typeof displayNames] || storageType;

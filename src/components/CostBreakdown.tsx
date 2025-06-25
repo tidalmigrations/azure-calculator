@@ -76,6 +76,12 @@ export const CostBreakdown: React.FC<CostBreakdownProps> = ({
               <span className="font-medium text-gray-900">{breakdown.storageDetails.tier}</span>
             </div>
             <div className="flex justify-between">
+              <span className="text-gray-600">Hourly Rate:</span>
+              <span className="font-medium text-gray-900">
+                ${breakdown.storageDetails.hourlyRate?.toFixed(6) || '0.000000'}/GiB/hour
+              </span>
+            </div>
+            <div className="flex justify-between">
               <span className="text-gray-600">Monthly Rate:</span>
               <span className="font-medium text-gray-900">{formatCurrency(breakdown.storageDetails.monthlyRate)}/GB/month</span>
             </div>
@@ -94,9 +100,14 @@ export const CostBreakdown: React.FC<CostBreakdownProps> = ({
           {/* Storage Cost Calculation Formula */}
           <div className="bg-green-50 rounded-lg p-3 mt-3">
             <p className="text-xs text-green-800 font-medium mb-1">Calculation:</p>
-            <p className="text-xs text-green-700">
-              {formatCurrency(breakdown.storageDetails.monthlyRate)} × {breakdown.storageDetails.capacityGB} GB = {formatCurrency(breakdown.storageDetails.subtotal)}
-            </p>
+            <div className="text-xs text-green-700 space-y-1">
+              <p>
+                Hourly: ${breakdown.storageDetails.hourlyRate?.toFixed(6) || '0.000000'} × {breakdown.storageDetails.capacityGB} GB × 730 hours
+              </p>
+              <p>
+                Monthly: {formatCurrency(breakdown.storageDetails.monthlyRate)} × {breakdown.storageDetails.capacityGB} GB = {formatCurrency(breakdown.storageDetails.subtotal)}
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -159,7 +170,7 @@ export const CostBreakdown: React.FC<CostBreakdownProps> = ({
             <ul className="text-xs text-yellow-700 mt-1 space-y-1">
               <li>• Prices are estimates based on Azure Retail Prices API</li>
               <li>• Actual costs may vary based on usage patterns and discounts</li>
-              <li>• Storage costs assume standard tier pricing</li>
+              <li>• Storage costs use Premium SSD v2 with granular per-GiB/hour pricing</li>
               <li>• VM costs are based on pay-as-you-go pricing</li>
             </ul>
           </div>

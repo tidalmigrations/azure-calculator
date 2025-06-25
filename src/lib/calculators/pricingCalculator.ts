@@ -171,6 +171,7 @@ export class PricingCalculator {
       details: {
         storageType: costItem.details.storageType || 'Unknown',
         monthlyRatePerGB: costItem.details.monthlyRatePerGB || 0,
+        hourlyRatePerGB: costItem.details.hourlyRatePerGB || 0,
         capacityGB: costItem.details.capacityGB || 0,
         region: costItem.details.region || 'Unknown',
         productName: costItem.details.productName || 'Unknown'
@@ -199,6 +200,7 @@ export class PricingCalculator {
       storageDetails: {
         tier: storageResult?.details.storageType || 'Not calculated',
         monthlyRate: storageResult?.details.monthlyRatePerGB || 0,
+        hourlyRate: storageResult?.details.hourlyRatePerGB || 0,
         capacityGB: storageResult?.details.capacityGB || 0,
         subtotal: storageResult?.cost || 0,
         currency: storageResult?.details.currency
@@ -220,6 +222,7 @@ export class PricingCalculator {
       storageDetails: {
         tier: `Error: ${errorMessage}`,
         monthlyRate: 0,
+        hourlyRate: 0,
         capacityGB: 0,
         subtotal: 0
       }

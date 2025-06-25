@@ -58,7 +58,8 @@ export function buildFilter(filters: PriceFilters): string {
         productFilter = "contains(tolower(productName), 'standard ssd')";
         break;
       case 'premium-ssd':
-        productFilter = "contains(tolower(productName), 'premium ssd')";
+        // Include both Premium SSD Managed Disks and Premium SSD v2
+        productFilter = "(contains(tolower(productName), 'premium ssd') or contains(tolower(productName), 'premium ssd v2'))";
         break;
       default:
         productFilter = "contains(tolower(productName), 'standard hdd')";

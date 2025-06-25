@@ -47,7 +47,7 @@ export const OS_TYPES = {
 export const STORAGE_TYPES = {
   STANDARD_HDD: 'Standard HDD',
   STANDARD_SSD: 'Standard SSD',
-  PREMIUM_SSD: 'Premium SSD'
+  PREMIUM_SSD: 'Premium SSD v2'
 } as const;
 
 // File types

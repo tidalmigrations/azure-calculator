@@ -72,6 +72,7 @@ export interface CostBreakdown {
   storageDetails: {
     tier: string;
     monthlyRate: number;
+    hourlyRate?: number;
     capacityGB: number;
     subtotal: number;
     currency?: string;

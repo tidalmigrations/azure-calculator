@@ -74,6 +74,7 @@ export interface StorageCalculationResult {
   details: {
     storageType: string;
     monthlyRatePerGB: number;
+    hourlyRatePerGB?: number;  // Original per GiB/hour rate (e.g., 0.000121)
     capacityGB: number;
     region: string;
     productName: string;
@@ -123,10 +124,10 @@ export const DEFAULT_VM_SIZES: VMSizeMapping = {
 };
 
 /**
- * Default storage types priority (most cost-effective first)
+ * Default storage types priority (best performance and value first)
  */
 export const DEFAULT_STORAGE_TYPES = [
-  'standard-hdd',
-  'standard-ssd', 
-  'premium-ssd'
+  'premium-ssd',    // Premium SSD v2 - best performance and granular pricing
+  'standard-ssd',   // Standard SSD - good performance
+  'standard-hdd'    // Standard HDD - lowest cost, lowest performance
 ] as const; 
