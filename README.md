@@ -41,15 +41,30 @@ npm run dev
 ## Usage
 
 1. **Upload**: Drop your CSV or Excel file on the home page
-2. **Map Columns**: Match your spreadsheet columns to required fields (Region, OS, Hours, Storage)
+2. **Map Columns**: Match your spreadsheet columns to required fields
 3. **Calculate**: Get Azure cost estimates for your infrastructure
 
 ### Required Data Fields
-Your spreadsheet should contain:
-- **Region**: Azure region (e.g., "East US", "West Europe")
-- **Operating System**: Windows or Linux
-- **Hours to Run**: Number of hours per month
-- **Storage Capacity**: Storage size in GB
+
+Your spreadsheet must contain these columns for the calculator to work:
+
+#### Essential Fields (Required)
+- **RAM Allocated (GB)**: Memory allocation in gigabytes (e.g., 4, 8, 16)
+- **Storage Allocated (GB)**: Storage capacity in gigabytes (e.g., 120.5, 500)
+- **Logical CPU Count**: Number of virtual CPUs (e.g., 2, 4, 8)
+- **Operating System Version**: OS type and version (e.g., "Ubuntu 20.04 LTS (64-bit)", "Microsoft Windows Server 2019 (64-bit)")
+- **Region**: Azure region identifier (e.g., "eastus", "westus2", "centralus")
+- **Hours to run**: Number of hours per month the server will run (e.g., 730 for 24/7)
+
+#### Optional Fields (For Better Organization)
+- **Application Group**: Logical grouping of servers (e.g., "E-Commerce Prod", "CRM Dev")
+- **Server Hostname**: Server identifier
+- **Environment**: Environment type (e.g., "Production", "Development", "QA")
+- **VM Family**: Azure VM family (e.g., "dsv6") - will be auto-detected if not provided
+
+### Sample Data Format
+
+See `data2/sample_servers.csv` for a complete example with the correct column structure.
 
 ## Project Structure
 
