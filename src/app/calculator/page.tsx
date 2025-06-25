@@ -1,9 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FileUploader, DataPreview, ColumnMapper } from '@/components';
+import { FileUploader, DataPreview, ColumnMapper, PricingResults } from '@/components';
 import { useSpreadsheetUpload } from '@/hooks';
-import type { ColumnMapping } from '@/types';
+import type { ColumnMapping, PricingResult } from '@/types';
 
 export default function CalculatorPage() {
   const {
@@ -16,321 +16,314 @@ export default function CalculatorPage() {
     resetUpload
   } = useSpreadsheetUpload();
 
-  const [currentStep, setCurrentStep] = useState<'upload' | 'mapping' | 'calculate'>('upload');
-  const [showHomePageNotification, setShowHomePageNotification] = useState(false);
+  const [currentStep, setCurrentStep] = useState<'upload' | 'mapping' | 'calculate' | 'results'>('upload');
+  
+  // Pricing results state
+  const [pricingResults, setPricingResults] = useState<PricingResult[] | null>(null);
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [calculationError, setCalculationError] = useState<string | null>(null);
 
-  // Check for pending file from home page
+  // Check for pre-loaded data from home page
   useEffect(() => {
-    const pendingFileData = sessionStorage.getItem('pendingFileData');
-    if (pendingFileData) {
+    const pendingData = sessionStorage.getItem('pendingFileData');
+    if (pendingData) {
       try {
-        const fileData = JSON.parse(pendingFileData);
-        
-        // Load the pre-parsed data directly
-        const parsedData = {
-          headers: fileData.headers,
-          rows: fileData.rows,
-          hasHeaders: fileData.hasHeaders
-        };
-        
-        loadParsedData(parsedData, fileData.fileName, fileData.fileType);
-        setShowHomePageNotification(true);
-        
-        // Clear the pending file
+        const data = JSON.parse(pendingData);
+        // Clear the stored data
         sessionStorage.removeItem('pendingFileData');
         
-        // Auto-hide notification after 5 seconds
-        setTimeout(() => setShowHomePageNotification(false), 5000);
+                 // Load the data into the hook
+         loadParsedData({
+           headers: data.headers,
+           rows: data.rows,
+           hasHeaders: data.hasHeaders
+         }, data.fileName, data.fileType);
         
+        // Skip to mapping step
+        setCurrentStep('mapping');
       } catch (error) {
-        console.error('Error parsing pending file data:', error);
-        sessionStorage.removeItem('pendingFileData');
+        console.error('Error loading pending data:', error);
       }
     }
   }, [loadParsedData]);
 
-  // Handle step progression
+     // Auto-advance to mapping step when data is uploaded
+   useEffect(() => {
+     if (!uploadState.isUploading && !uploadState.error && parsedData && currentStep === 'upload') {
+       setCurrentStep('mapping');
+     }
+   }, [uploadState.isUploading, uploadState.error, parsedData, currentStep]);
+
+   const canProceed = () => {
+     switch (currentStep) {
+       case 'upload':
+         return !uploadState.isUploading && !uploadState.error && parsedData;
+      case 'mapping':
+        return columnMapping && 
+               columnMapping.region && 
+               columnMapping.os && 
+               columnMapping.hoursToRun && 
+               columnMapping.storageCapacity;
+      case 'calculate':
+        return true;
+      case 'results':
+        return true;
+      default:
+        return false;
+    }
+  };
+
   const handleNextStep = () => {
-    if (currentStep === 'upload' && parsedData) {
-      setCurrentStep('mapping');
-    } else if (currentStep === 'mapping') {
-      setCurrentStep('calculate');
-    }
-  };
-
-  const handlePreviousStep = () => {
-    if (currentStep === 'mapping') {
-      setCurrentStep('upload');
-    } else if (currentStep === 'calculate') {
-      setCurrentStep('mapping');
-    }
-  };
-
-  const handleReset = () => {
-    resetUpload();
-    setCurrentStep('upload');
-  };
-
-  // Check if we can proceed to next step
-  const canProceed = () => {
-    if (currentStep === 'upload') {
-      return parsedData && !uploadState.error;
-    } else if (currentStep === 'mapping') {
-      return Object.values(columnMapping).every(value => value !== null);
-    }
-    return false;
-  };
-
-  const renderStepIndicator = () => {
-    const steps = [
-      { key: 'upload', label: 'Upload File', icon: '📁' },
-      { key: 'mapping', label: 'Map Columns', icon: '🗂️' },
-      { key: 'calculate', label: 'Calculate Costs', icon: '💰' }
-    ];
-
-    return (
-      <div className="flex items-center justify-center space-x-4 mb-8">
-        {steps.map((step, index) => {
-          const isActive = currentStep === step.key;
-          const isComplete = steps.findIndex(s => s.key === currentStep) > index;
-          
-          return (
-            <div key={step.key} className="flex items-center">
-              <div className={`
-                flex items-center justify-center w-10 h-10 rounded-full text-sm font-medium
-                ${isActive 
-                  ? 'bg-blue-600 text-white' 
-                  : isComplete 
-                    ? 'bg-green-500 text-white' 
-                    : 'bg-gray-200 text-gray-600'
-                }
-              `}>
-                {isComplete ? '✓' : step.icon}
-              </div>
-              <span className={`ml-2 text-sm font-medium ${
-                isActive ? 'text-blue-600' : isComplete ? 'text-green-600' : 'text-gray-500'
-              }`}>
-                {step.label}
-              </span>
-              {index < steps.length - 1 && (
-                <div className={`w-8 h-0.5 mx-4 ${
-                  isComplete ? 'bg-green-500' : 'bg-gray-200'
-                }`} />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  const renderStepContent = () => {
+    if (!canProceed()) return;
+    
     switch (currentStep) {
       case 'upload':
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Upload Your Spreadsheet
-              </h2>
-              <p className="text-gray-600">
-                Upload a CSV or Excel file containing your server data to get started with Azure cost calculations.
-              </p>
-            </div>
-            
-            <FileUploader
-              onFileSelect={handleFileSelect}
-              uploadState={uploadState}
-              className="max-w-2xl mx-auto"
-            />
-
-            {parsedData && (
-              <div className="mt-8">
-                <DataPreview 
-                  data={parsedData} 
-                  maxRows={5}
-                  className="max-w-6xl mx-auto"
-                />
-              </div>
-            )}
-          </div>
-        );
-
+        setCurrentStep('mapping');
+        break;
       case 'mapping':
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Map Your Columns
-              </h2>
-              <p className="text-gray-600">
-                Tell us which columns in your spreadsheet correspond to the required fields for Azure pricing.
-              </p>
-            </div>
-
-            {parsedData && (
-              <ColumnMapper
-                data={parsedData}
-                onMappingChange={setColumnMapping}
-                className="max-w-4xl mx-auto"
-              />
-            )}
-          </div>
-        );
-
+        setCurrentStep('calculate');
+        break;
       case 'calculate':
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                Calculate Azure Costs
-              </h2>
-              <p className="text-gray-600">
-                Ready to calculate costs for your {parsedData?.rows.length} servers using Azure pricing.
-              </p>
-            </div>
+        handleCalculate();
+        break;
+      case 'results':
+        // Reset to start over
+        resetUpload();
+        setPricingResults(null);
+        setCalculationError(null);
+        setCurrentStep('upload');
+        break;
+    }
+  };
 
-            <div className="max-w-4xl mx-auto bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-              <div className="flex items-center">
-                <svg className="w-6 h-6 text-yellow-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-                <div>
-                  <h3 className="text-lg font-medium text-yellow-800">Coming Soon - Phase 5</h3>
-                  <p className="text-sm text-yellow-700 mt-1">
-                    The pricing calculator component will be implemented in Phase 5. 
-                    For now, you can see your mapped data is ready for processing.
-                  </p>
-                </div>
-              </div>
-            </div>
+  const handleCalculate = async () => {
+    if (!parsedData || !columnMapping) return;
+    
+    setIsCalculating(true);
+    setCalculationError(null);
+    
+    try {
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Mock calculation logic
+      const results: PricingResult[] = parsedData.rows.map((row, index) => {
+        const region = row[columnMapping.region!] || 'East US';
+        const os = row[columnMapping.os!] || 'Windows';
+        const hours = parseFloat(row[columnMapping.hoursToRun!]) || 24;
+        const storage = parseFloat(row[columnMapping.storageCapacity!]) || 100;
+        
+        // Mock pricing
+        const vmHourlyRate = os.toLowerCase().includes('linux') ? 0.044 : 0.096;
+        const storageMonthlyRate = 0.002; // per GB per month
+        
+        const vmCost = vmHourlyRate * hours;
+        const storageCost = storageMonthlyRate * storage;
+        const totalCost = vmCost + storageCost;
+        
+                 return {
+           region,
+           os,
+           hoursToRun: hours,
+           storageCapacity: storage,
+           vmCost,
+           storageCost,
+           totalCost,
+           breakdown: {
+             vmDetails: {
+               size: 'Standard_B2s',
+               hourlyRate: vmHourlyRate,
+               totalHours: hours,
+               subtotal: vmCost
+             },
+             storageDetails: {
+               tier: 'Standard HDD',
+               monthlyRate: storageMonthlyRate,
+               capacityGB: storage,
+               subtotal: storageCost
+             }
+           }
+         };
+      });
+      
+      setPricingResults(results);
+      setCurrentStep('results');
+    } catch (error) {
+      console.error('Calculation error:', error);
+      setCalculationError(error instanceof Error ? error.message : 'Calculation failed');
+    } finally {
+      setIsCalculating(false);
+    }
+  };
 
-            {parsedData && (
-              <div className="max-w-4xl mx-auto bg-white border border-gray-200 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Mapping Summary</h3>
-                <div className="grid md:grid-cols-2 gap-4">
-                  {Object.entries(columnMapping).map(([field, column]) => (
-                    <div key={field} className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                      <span className="font-medium text-gray-700 capitalize">
-                        {field.replace(/([A-Z])/g, ' $1').trim()}:
-                      </span>
-                      <span className="text-gray-600">{column || 'Not mapped'}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 text-sm text-gray-600">
-                  <strong>Data ready:</strong> {parsedData.rows.length} rows × {parsedData.headers.length} columns
-                </div>
-              </div>
-            )}
-          </div>
-        );
+  const getStepTitle = () => {
+    switch (currentStep) {
+      case 'upload': return 'Upload Spreadsheet';
+      case 'mapping': return 'Map Columns';
+      case 'calculate': return 'Calculate Costs';
+      case 'results': return 'Results';
+      default: return '';
+    }
+  };
 
-      default:
-        return null;
+  const getStepDescription = () => {
+    switch (currentStep) {
+      case 'upload': return 'Upload your CSV or Excel file';
+      case 'mapping': return 'Match your columns to required fields';
+      case 'calculate': return 'Calculate Azure costs';
+      case 'results': return 'View your cost breakdown';
+      default: return '';
     }
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
             Azure Cost Calculator
           </h1>
-          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Upload your server inventory and get accurate Azure VM and storage cost estimates
+          <p className="text-gray-600">
+            {getStepDescription()}
           </p>
         </div>
 
-        {/* Home page notification */}
-        {showHomePageNotification && (
-          <div className="max-w-2xl mx-auto mb-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center">
-                <svg className="w-5 h-5 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <div>
-                  <p className="text-sm text-blue-800">
-                    <strong>Welcome from the home page!</strong> Please upload your file using the area below to get started.
-                  </p>
-                </div>
-                <button 
-                  onClick={() => setShowHomePageNotification(false)}
-                  className="ml-auto text-blue-600 hover:text-blue-800 text-xl"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Step Indicator */}
-        {renderStepIndicator()}
-
         {/* Main Content */}
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-7xl mx-auto">
-          {renderStepContent()}
-
-          {/* Navigation Buttons */}
-          <div className="flex justify-between items-center mt-8 pt-6 border-t border-gray-200">
-            <div className="flex space-x-3">
-              {currentStep !== 'upload' && (
-                <button
-                  onClick={handlePreviousStep}
-                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                >
-                  ← Previous
-                </button>
-              )}
-              
-              <button
-                onClick={handleReset}
-                className="px-4 py-2 text-red-600 border border-red-300 rounded-md hover:bg-red-50 transition-colors"
-              >
-                🔄 Start Over
-              </button>
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            {/* Step Header */}
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                {getStepTitle()}
+              </h2>
             </div>
 
-            <div className="flex space-x-3">
-              {currentStep !== 'calculate' && (
-                <button
-                  onClick={handleNextStep}
-                  disabled={!canProceed()}
-                  className={`px-6 py-2 rounded-md font-medium transition-colors ${
-                    canProceed()
-                      ? 'bg-blue-600 text-white hover:bg-blue-700'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
-                >
-                  Next →
-                </button>
-              )}
-              
-              {currentStep === 'calculate' && (
-                <button
-                  disabled
-                  className="px-6 py-2 bg-gray-300 text-gray-500 rounded-md cursor-not-allowed"
-                >
-                  Calculate Costs (Phase 5)
-                </button>
-              )}
-            </div>
+            {/* Step Content */}
+            {currentStep === 'upload' && (
+              <div>
+                <FileUploader
+                  onFileSelect={handleFileSelect}
+                  uploadState={uploadState}
+                />
+                 {parsedData && (
+                   <div className="mt-6">
+                     <DataPreview 
+                       data={parsedData} 
+                     />
+                     <div className="mt-4 flex justify-end">
+                       <button
+                         onClick={handleNextStep}
+                         disabled={!canProceed()}
+                         className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                       >
+                         Next
+                       </button>
+                     </div>
+                   </div>
+                 )}
+              </div>
+            )}
+
+            {currentStep === 'mapping' && parsedData && (
+              <div>
+                 <ColumnMapper
+                   data={parsedData}
+                   onMappingChange={setColumnMapping}
+                 />
+                 <div className="mt-6 flex justify-between">
+                   <button
+                     onClick={() => setCurrentStep('upload')}
+                     className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                   >
+                     Back
+                   </button>
+                   <button
+                     onClick={handleNextStep}
+                     disabled={!canProceed()}
+                     className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                   >
+                     Calculate
+                   </button>
+                 </div>
+              </div>
+            )}
+
+            {currentStep === 'calculate' && (
+              <div className="text-center py-12">
+                {isCalculating ? (
+                  <div>
+                    <div className="w-16 h-16 mx-auto mb-4 animate-spin">
+                      <svg className="w-16 h-16 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Calculating costs...
+                    </h3>
+                    <p className="text-gray-600">
+                      Please wait while we calculate your Azure costs
+                    </p>
+                  </div>
+                ) : calculationError ? (
+                  <div>
+                    <div className="w-16 h-16 mx-auto mb-4 text-red-600">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-medium text-red-900 mb-2">
+                      Calculation Failed
+                    </h3>
+                    <p className="text-red-600 mb-4">
+                      {calculationError}
+                    </p>
+                    <button
+                      onClick={() => setCurrentStep('mapping')}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                ) : (
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                      Ready to Calculate
+                    </h3>
+                    <p className="text-gray-600 mb-6">
+                      Click the button below to calculate your Azure costs
+                    </p>
+                    <button
+                      onClick={handleCalculate}
+                      className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
+                    >
+                      Calculate Costs
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {currentStep === 'results' && pricingResults && (
+              <div>
+                <PricingResults 
+                  results={pricingResults}
+                  isLoading={isCalculating}
+                  error={calculationError}
+                />
+                <div className="mt-6 flex justify-center">
+                  <button
+                    onClick={handleNextStep}
+                    className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
+                  >
+                    Start Over
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="text-center mt-8 text-sm text-gray-500">
-          <p>✅ Phase 1: Project Setup - Complete</p>
-          <p>✅ Phase 2: Azure API Integration - Complete</p>
-          <p>✅ Phase 3: Spreadsheet Processing - Complete</p>
-          <p>🚧 Phase 4: UI Development - In Progress</p>
-          <p>⏳ Phase 5: Pricing Calculator - Coming Soon</p>
         </div>
       </div>
-    </main>
+    </div>
   );
 } 

@@ -6,9 +6,9 @@ import type {
   FileUploadState,
   ColumnMapping,
   ApplicationData,
-  ApiError,
   ValidationError
 } from '../index'
+import { ApiError } from '../index'
 
 // Type tests using TypeScript's type system
 describe('Type Definitions', () => {
@@ -161,19 +161,20 @@ describe('Type Definitions', () => {
 
   describe('ApiError', () => {
     it('should have correct structure', () => {
-      const mockError: ApiError = {
-        message: 'API request failed',
-        status: 500,
-        code: 'INTERNAL_SERVER_ERROR',
-        details: {
+      const mockError = new ApiError(
+        'API request failed',
+        500,
+        'INTERNAL_SERVER_ERROR',
+        {
           endpoint: '/api/retail/prices',
           timestamp: '2023-01-01T12:00:00Z'
         }
-      }
+      );
 
       expect(mockError.message).toBe('API request failed')
       expect(mockError.status).toBe(500)
       expect(mockError.code).toBe('INTERNAL_SERVER_ERROR')
+      expect(mockError.name).toBe('ApiError')
     })
   })
 
