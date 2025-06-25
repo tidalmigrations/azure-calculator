@@ -76,10 +76,28 @@ export default function Home() {
                 <p className="text-gray-500 mb-2">
                   Drop your spreadsheet here, or click to browse
                 </p>
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-gray-400 mb-4">
                   Supports CSV and Excel files (.csv, .xlsx, .xls)
                 </p>
+                <p className="text-sm text-red-500 font-medium">
+                  Coming Soon - File upload functionality in Phase 3
+                </p>
               </div>
+            </div>
+            
+            <div className="mt-6 text-center">
+              <a 
+                href="/api-demo" 
+                className="inline-block px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                View Azure API Demo
+              </a>
+            </div>
+            
+            <div className="mt-6 text-sm text-gray-500 text-center">
+              <p>✅ Phase 1: Project Setup & Architecture - Complete</p>
+              <p>✅ Phase 2: Azure API Integration - Complete</p>
+              <p>🚧 Phase 3: Spreadsheet Processing - Coming Soon</p>
             </div>
           </div>
         </div>

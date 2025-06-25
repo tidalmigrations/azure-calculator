@@ -86,11 +86,30 @@ export interface ApplicationData {
 }
 
 // Error types
-export interface ApiError {
+export interface ApiErrorInterface {
   message: string;
   status: number;
   code: string;
   details?: Record<string, any>;
+}
+
+export class ApiError extends Error implements ApiErrorInterface {
+  public readonly status: number;
+  public readonly code: string;
+  public readonly details?: Record<string, any>;
+
+  constructor(message: string, status: number, code: string, details?: Record<string, any>) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.code = code;
+    this.details = details;
+    
+    // Maintains proper stack trace for where our error was thrown (only available on V8)
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, ApiError);
+    }
+  }
 }
 
 export interface ValidationError {
