@@ -90,6 +90,13 @@ export function normalizeRegionName(region: string): string {
     'south central us': 'southcentralus',
     'west central us': 'westcentralus',
     
+    // Canada regions
+    'canada central': 'canadacentral',
+    'canada east': 'canadaeast',
+    'cacentral': 'canadacentral',
+    'ca central': 'canadacentral',
+    'can central': 'canadacentral',
+    
     // Europe regions
     'north europe': 'northeurope',
     'west europe': 'westeurope',
@@ -103,6 +110,7 @@ export function normalizeRegionName(region: string): string {
     'norway west': 'norwaywest',
     'switzerland north': 'switzerlandnorth',
     'switzerland west': 'switzerlandwest',
+    'sweden central': 'swedencentral',
     
     // Asia Pacific regions
     'southeast asia': 'southeastasia',
@@ -120,8 +128,6 @@ export function normalizeRegionName(region: string): string {
     'india west': 'westindia',
     
     // Other regions
-    'canada central': 'canadacentral',
-    'canada east': 'canadaeast',
     'brazil south': 'brazilsouth',
     'south africa north': 'southafricanorth',
     'south africa west': 'southafricawest',

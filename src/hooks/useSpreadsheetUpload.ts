@@ -29,7 +29,17 @@ export function useSpreadsheetUpload(): UseSpreadsheetUploadReturn {
     region: null,
     os: null,
     hoursToRun: null,
-    storageCapacity: null
+    storageCapacity: null,
+    hostname: null,
+    cpuCount: null,
+    ramCapacity: null,
+    applicationGroup: null,
+    matchType: null,
+    confidenceScore: null,
+    environment: null,
+    fqdn: null,
+    ipAddresses: null,
+    vmFamily: null
   });
 
   const handleFileSelect = useCallback(async (file: File) => {
@@ -106,7 +116,17 @@ export function useSpreadsheetUpload(): UseSpreadsheetUploadReturn {
       region: null,
       os: null,
       hoursToRun: null,
-      storageCapacity: null
+      storageCapacity: null,
+      hostname: null,
+      cpuCount: null,
+      ramCapacity: null,
+      applicationGroup: null,
+      matchType: null,
+      confidenceScore: null,
+      environment: null,
+      fqdn: null,
+      ipAddresses: null,
+      vmFamily: null
     });
   }, []);
 

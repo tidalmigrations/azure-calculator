@@ -86,6 +86,9 @@ export function normalizeRegion(region: string): string {
     'west central us': 'westcentralus',
     'canada central': 'canadacentral',
     'canada east': 'canadaeast',
+    'cacentral': 'canadacentral',
+    'ca central': 'canadacentral',
+    'can central': 'canadacentral',
     'brazil south': 'brazilsouth',
     'north europe': 'northeurope',
     'west europe': 'westeurope',
@@ -113,7 +116,7 @@ export function normalizeRegion(region: string): string {
   };
   
   const normalized = region.toLowerCase().trim();
-  return regionMap[normalized] || normalized;
+  return regionMap[normalized] || normalized.replace(/\s+/g, '');
 }
 
 /**
@@ -169,7 +172,17 @@ export function detectColumnMappings(headers: string[]): ColumnMapping {
     region: null,
     os: null,
     hoursToRun: null,
-    storageCapacity: null
+    storageCapacity: null,
+    hostname: null,
+    cpuCount: null,
+    ramCapacity: null,
+    applicationGroup: null,
+    matchType: null,
+    confidenceScore: null,
+    environment: null,
+    fqdn: null,
+    ipAddresses: null,
+    vmFamily: null
   };
 
   // Normalize headers for comparison
@@ -204,27 +217,121 @@ export function detectColumnMappings(headers: string[]): ColumnMapping {
       /^storage$/i,
       /^disk$/i,
       /^capacity$/i
+    ],
+    hostname: [
+      /^server\s*hostname$/i,
+      /^hostname$/i,
+      /^server\s*name$/i,
+      /^computer\s*name$/i,
+      /^machine\s*name$/i,
+      /^host\s*name$/i,
+      /^server$/i,
+      /^host$/i,
+      /^computer$/i,
+      /^machine$/i,
+      /^system\s*name$/i,
+      /^node\s*name$/i,
+      /^device\s*name$/i,
+      /^asset\s*name$/i,
+      /^vm\s*name$/i,
+      /^name$/i
+    ],
+    cpuCount: [
+      /^logical\s*cpu\s*count$/i,
+      /^cpu\s*count$/i,
+      /^vcpu\s*count$/i,
+      /^processor\s*count$/i,
+      /^core\s*count$/i,
+      /^cpu\s*cores$/i,
+      /^cores$/i,
+      /^cpus$/i,
+      /^vcpus$/i,
+      /^processors$/i,
+      /^cpu$/i
+    ],
+    ramCapacity: [
+      /^ram\s*allocated\s*\(?\s*gb\s*\)?$/i,
+      /^memory\s*allocated\s*\(?\s*gb\s*\)?$/i,
+      /^ram\s*\(?\s*gb\s*\)?$/i,
+      /^memory\s*\(?\s*gb\s*\)?$/i,
+      /^ram\s*capacity$/i,
+      /^memory\s*capacity$/i,
+      /^memory\s*size$/i,
+      /^ram\s*size$/i,
+      /^memory$/i,
+      /^ram$/i
+    ],
+    applicationGroup: [
+      /^application\s*group$/i,
+      /^app\s*group$/i,
+      /^service\s*group$/i,
+      /^workload\s*group$/i,
+      /^business\s*unit$/i,
+      /^department$/i,
+      /^team$/i,
+      /^group$/i
+    ],
+    matchType: [
+      /^match\s*type$/i,
+      /^matching\s*type$/i,
+      /^match\s*method$/i,
+      /^identification\s*type$/i,
+      /^match$/i
+    ],
+    confidenceScore: [
+      /^confidence\s*score$/i,
+      /^confidence\s*level$/i,
+      /^match\s*confidence$/i,
+      /^accuracy\s*score$/i,
+      /^confidence$/i,
+      /^score$/i
+    ],
+    environment: [
+      /^environment$/i,
+      /^env$/i,
+      /^deployment\s*environment$/i,
+      /^stage$/i,
+      /^tier$/i
+    ],
+    fqdn: [
+      /^fqdn$/i,
+      /^fully\s*qualified\s*domain\s*name$/i,
+      /^domain\s*name$/i,
+      /^dns\s*name$/i,
+      /^qualified\s*name$/i
+    ],
+    ipAddresses: [
+      /^ip\s*address(es)?$/i,
+      /^ip$/i,
+      /^network\s*address$/i,
+      /^address$/i,
+      /^addresses$/i
+    ],
+    vmFamily: [
+      /^vm\s*family$/i,
+      /^virtual\s*machine\s*family$/i,
+      /^instance\s*family$/i,
+      /^vm\s*type$/i,
+      /^instance\s*type$/i,
+      /^family$/i
     ]
   };
 
-  // For each field, find the best match
+  // Find best match for each field
   for (const [field, fieldPatterns] of Object.entries(patterns)) {
-    let bestMatch: string | null = null;
-    let bestScore = -1;
+    let bestMatch = null;
+    let bestScore = 0;
 
     for (let i = 0; i < headers.length; i++) {
       const header = headers[i];
       const normalizedHeader = normalizedHeaders[i];
 
-      for (let j = 0; j < fieldPatterns.length; j++) {
-        const pattern = fieldPatterns[j];
+      for (const pattern of fieldPatterns) {
         if (pattern.test(normalizedHeader)) {
-          // Score based on pattern specificity (earlier patterns are more specific)
-          // and length bonus for more specific matches
-          const patternScore = (fieldPatterns.length - j) * 10;
-          const lengthBonus = normalizedHeader.length; // Longer, more specific names get higher score
-          const score = patternScore + lengthBonus;
-
+          // Score based on pattern specificity (more specific patterns have higher priority)
+          const score = fieldPatterns.indexOf(pattern) === 0 ? 3 : 
+                       fieldPatterns.indexOf(pattern) < 3 ? 2 : 1;
+          
           if (score > bestScore) {
             bestScore = score;
             bestMatch = header;

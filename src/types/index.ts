@@ -36,6 +36,16 @@ export interface ColumnMapping {
   os: string | null;
   hoursToRun: string | null;
   storageCapacity: string | null;
+  hostname: string | null;
+  cpuCount: string | null;
+  ramCapacity: string | null;
+  applicationGroup: string | null;
+  matchType: string | null;
+  confidenceScore: string | null;
+  environment: string | null;
+  fqdn: string | null;
+  ipAddresses: string | null;
+  vmFamily: string | null;
 }
 
 export interface PricingResult extends SpreadsheetRow {
@@ -43,6 +53,9 @@ export interface PricingResult extends SpreadsheetRow {
   storageCost: number;
   totalCost: number;
   breakdown?: CostBreakdown;
+  hostname?: string;
+  requiredCPUs?: number;
+  requiredRAM?: number;
 }
 
 export interface CostBreakdown {
@@ -51,12 +64,17 @@ export interface CostBreakdown {
     hourlyRate: number;
     totalHours: number;
     subtotal: number;
+    currency?: string;
+    cpu?: number;
+    ram?: number;
+    hostname?: string;
   };
   storageDetails: {
     tier: string;
     monthlyRate: number;
     capacityGB: number;
     subtotal: number;
+    currency?: string;
   };
 }
 

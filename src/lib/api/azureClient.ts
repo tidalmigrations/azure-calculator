@@ -51,7 +51,8 @@ export class AzureRetailPricesClient {
     this.apiVersion = process.env.NEXT_PUBLIC_AZURE_API_VERSION || '2023-01-01-preview';
     this.cacheTtl = parseInt(process.env.NEXT_PUBLIC_CACHE_TTL || '3600000'); // 1 hour default
     
-    const maxRequests = parseInt(process.env.NEXT_PUBLIC_API_RATE_LIMIT_REQUESTS || '10');
+    // More conservative rate limiting to avoid API issues
+    const maxRequests = parseInt(process.env.NEXT_PUBLIC_API_RATE_LIMIT_REQUESTS || '5'); // Reduced from 10 to 5
     const windowMs = parseInt(process.env.NEXT_PUBLIC_API_RATE_LIMIT_WINDOW || '60000');
     this.rateLimiter = new RateLimiter(maxRequests, windowMs);
   }
@@ -120,7 +121,7 @@ export class AzureRetailPricesClient {
         
         // Small delay between requests to be respectful
         if (nextPageLink) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
         
       } while (nextPageLink);
@@ -148,10 +149,242 @@ export class AzureRetailPricesClient {
   }
 
   /**
-   * Get VM prices for a specific region and OS
+   * Convert normalized region to Calculator API format (with dashes)
+   */
+  private convertToCalculatorRegion(normalizedRegion: string): string {
+    const regionMap: Record<string, string> = {
+      'canadacentral': 'canada-central',
+      'canadaeast': 'canada-east',
+      'eastus': 'east-us',
+      'eastus2': 'east-us-2',
+      'westus': 'west-us',
+      'westus2': 'west-us-2',
+      'westus3': 'west-us-3',
+      'centralus': 'central-us',
+      'northcentralus': 'north-central-us',
+      'southcentralus': 'south-central-us',
+      'westcentralus': 'west-central-us',
+      'brazilsouth': 'brazil-south',
+      'northeurope': 'north-europe',
+      'westeurope': 'west-europe',
+      'uksouth': 'uk-south',
+      'ukwest': 'uk-west',
+      'francecentral': 'france-central',
+      'francesouth': 'france-south',
+      'germanywestcentral': 'germany-west-central',
+      'norwayeast': 'norway-east',
+      'switzerlandnorth': 'switzerland-north',
+      'swedencentral': 'sweden-central',
+      'eastasia': 'east-asia',
+      'southeastasia': 'southeast-asia',
+      'japaneast': 'japan-east',
+      'japanwest': 'japan-west',
+      'koreacentral': 'korea-central',
+      'koreasouth': 'korea-south',
+      'australiaeast': 'australia-east',
+      'australiasoutheast': 'australia-southeast',
+      'southafricanorth': 'south-africa-north',
+      'southindia': 'south-india',
+      'centralindia': 'central-india',
+      'westindia': 'west-india'
+    };
+    
+    return regionMap[normalizedRegion] || normalizedRegion;
+  }
+
+  /**
+   * Get VM prices for a specific region and OS using the Pricing Calculator API
+   * This API has more up-to-date VM pricing data than the Retail Prices API
+   */
+  async getVMPricesFromCalculator(region: string, os: 'windows' | 'linux'): Promise<AzureRetailPrice[]> {
+    const cacheKey = `calc-vm-prices:${region}:${os}`;
+    const cached = this.cache.get(cacheKey);
+    
+    // Return cached data if valid
+    if (cached && cached.expiry > Date.now()) {
+      return cached.data;
+    }
+
+    // Check rate limit
+    if (!this.rateLimiter.canMakeRequest()) {
+      const retryAfter = this.rateLimiter.getRetryAfter();
+      throw new ApiError(
+        `Rate limit exceeded. Retry after ${Math.ceil(retryAfter / 1000)} seconds.`,
+        429,
+        'RATE_LIMIT_EXCEEDED',
+        { retryAfter }
+      );
+    }
+
+    try {
+      const calculatorRegion = this.convertToCalculatorRegion(region);
+      console.log(`🔍 VM DEBUG - Region conversion: '${region}' -> '${calculatorRegion}'`);
+      const url = `/api/azure-calculator-prices?region=${calculatorRegion}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new ApiError(
+          `Calculator API Error: ${response.statusText}`,
+          response.status,
+          'CALCULATOR_API_ERROR',
+          { url, region, calculatorRegion }
+        );
+      }
+      
+      const data = await response.json();
+      const prices: AzureRetailPrice[] = [];
+      
+      if (data.offers) {
+        console.log(`🔍 API SOURCE - Processing ${Object.keys(data.offers).length} VM offers for ${os} in ${region}`);
+        
+        let osMatchCount = 0;
+        let totalOffers = 0;
+        
+        // Debug: Show first few offers structure
+        const sampleOffers = Object.entries(data.offers).slice(0, 3);
+        console.log('🔍 VM DEBUG - Sample offer structure:', sampleOffers.map(([key, offer]: [string, any]) => {
+          const keyParts = key.split('-');
+          const extractedOS = keyParts[0];
+          const vmName = keyParts.slice(1, -1).join('-');
+          return {
+            key,
+            extractedOS,
+            vmName,
+            cores: offer.cores,
+            ram: offer.ram,
+            hasPrice: !!offer.prices?.perhour?.[calculatorRegion]
+          };
+        }));
+        
+        // Process each offer
+        Object.entries(data.offers).forEach(([key, offer]: [string, any]) => {
+          totalOffers++;
+          
+          // Extract OS from the key (e.g., "linux-f4sv2-standard" -> "linux")
+          const keyParts = key.split('-');
+          const offerOS = keyParts[0]; // First part is the OS
+          
+          if (offerOS && offerOS.toLowerCase() === os.toLowerCase()) {
+            osMatchCount++;
+            
+            // Extract VM name from key (e.g., "linux-f4sv2-standard" -> "f4sv2")
+            const vmNameFromKey = keyParts.slice(1, -1).join('-'); // Remove OS and "standard"
+            
+            // Convert VM name to standard format
+            const standardName = this.convertToStandardVMName(vmNameFromKey);
+            
+            if (offer.prices?.perhour?.[calculatorRegion]) {
+              prices.push({
+                currencyCode: 'USD',
+                tierMinimumUnits: 0,
+                retailPrice: offer.prices.perhour[calculatorRegion].value,
+                unitPrice: offer.prices.perhour[calculatorRegion].value,
+                armRegionName: region,
+                location: region,
+                effectiveStartDate: new Date().toISOString(),
+                meterId: key,
+                meterName: standardName,
+                productId: key,
+                skuId: key,
+                productName: `Virtual Machines ${standardName} Series ${os}`,
+                skuName: standardName,
+                serviceName: 'Virtual Machines',
+                serviceId: 'DZH318Z0BQ5P',
+                serviceFamily: 'Compute',
+                unitOfMeasure: '1 Hour',
+                type: 'Consumption',
+                isPrimaryMeterRegion: true,
+                armSkuName: standardName
+              });
+            }
+          }
+        });
+        
+        console.log(`🔍 VM DEBUG - OS matching: ${osMatchCount}/${totalOffers} offers matched OS '${os}'`);
+        console.log(`🔍 API SOURCE - Successfully processed ${prices.length} ${os} VMs from ${osMatchCount} matching offers`);
+      }
+
+      // Cache the results
+      this.cache.set(cacheKey, {
+        data: prices,
+        expiry: Date.now() + this.cacheTtl
+      });
+      
+      console.log(`✅ Server Selection - Found ${prices.length} ${os} VMs from Calculator API`);
+      return prices;
+      
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      
+      throw new ApiError(
+        `Failed to fetch VM prices from Calculator API: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        500,
+        'CALCULATOR_FETCH_ERROR',
+        { region, os, error: error instanceof Error ? error.message : String(error) }
+      );
+    }
+  }
+
+  /**
+   * Convert calculator API VM names to standard Azure VM names
+   * e.g., "d4sv6" -> "Standard_D4s_v6"
+   */
+  private convertToStandardVMName(vmName: string): string {
+    // Handle various patterns
+    const patterns = [
+      // Standard D-series patterns
+      { regex: /^d(\d+)sv(\d+)$/, replacement: 'Standard_D$1s_v$2' },
+      { regex: /^d(\d+)dsv(\d+)$/, replacement: 'Standard_D$1ds_v$2' },
+      { regex: /^d(\d+)asv(\d+)$/, replacement: 'Standard_D$1as_v$2' },
+      { regex: /^d(\d+)adsv(\d+)$/, replacement: 'Standard_D$1ads_v$2' },
+      { regex: /^d(\d+)alsv(\d+)$/, replacement: 'Standard_D$1als_v$2' },
+      { regex: /^d(\d+)aldsv(\d+)$/, replacement: 'Standard_D$1alds_v$2' },
+      { regex: /^d(\d+)psv(\d+)$/, replacement: 'Standard_D$1ps_v$2' },
+      { regex: /^d(\d+)pdsv(\d+)$/, replacement: 'Standard_D$1pds_v$2' },
+      { regex: /^d(\d+)plsv(\d+)$/, replacement: 'Standard_D$1pls_v$2' },
+      { regex: /^d(\d+)pldsv(\d+)$/, replacement: 'Standard_D$1plds_v$2' },
+      { regex: /^d(\d+)lsv(\d+)$/, replacement: 'Standard_D$1ls_v$2' },
+      { regex: /^d(\d+)ldsv(\d+)$/, replacement: 'Standard_D$1lds_v$2' },
+      
+      // E-series patterns
+      { regex: /^e(\d+)sv(\d+)$/, replacement: 'Standard_E$1s_v$2' },
+      { regex: /^e(\d+)dsv(\d+)$/, replacement: 'Standard_E$1ds_v$2' },
+      { regex: /^e(\d+)asv(\d+)$/, replacement: 'Standard_E$1as_v$2' },
+      { regex: /^e(\d+)adsv(\d+)$/, replacement: 'Standard_E$1ads_v$2' },
+      { regex: /^e(\d+)psv(\d+)$/, replacement: 'Standard_E$1ps_v$2' },
+      { regex: /^e(\d+)pdsv(\d+)$/, replacement: 'Standard_E$1pds_v$2' },
+      
+      // F-series patterns
+      { regex: /^f(\d+)sv(\d+)$/, replacement: 'Standard_F$1s_v$2' },
+      { regex: /^f(\d+)asv(\d+)$/, replacement: 'Standard_F$1as_v$2' },
+      { regex: /^f(\d+)alsv(\d+)$/, replacement: 'Standard_F$1als_v$2' },
+      { regex: /^f(\d+)amsv(\d+)$/, replacement: 'Standard_F$1ams_v$2' },
+      
+      // Special patterns with complex naming
+      { regex: /^e(\d+)-(\d+)sv(\d+)$/, replacement: 'Standard_E$1-$2s_v$3' },
+      { regex: /^e(\d+)-(\d+)dsv(\d+)$/, replacement: 'Standard_E$1-$2ds_v$3' },
+      { regex: /^e(\d+)idsv(\d+)$/, replacement: 'Standard_E$1ids_v$2' },
+    ];
+    
+    for (const pattern of patterns) {
+      if (pattern.regex.test(vmName)) {
+        return vmName.replace(pattern.regex, pattern.replacement);
+      }
+    }
+    
+    // Fallback: capitalize first letter and add Standard_ prefix
+    return `Standard_${vmName.charAt(0).toUpperCase()}${vmName.slice(1)}`;
+  }
+
+  /**
+   * Get VM prices for a specific region and OS (fallback to retail API)
    */
   async getVMPrices(region: string, os: 'windows' | 'linux', skuName?: string): Promise<AzureRetailPrice[]> {
     const filter = buildVMFilter(region, os, skuName);
+    console.log(`🔍 Server Selection - Azure API filter: ${filter}`);
     return this.fetchPrices(filter);
   }
 

@@ -38,6 +38,76 @@ const REQUIRED_FIELDS = [
     description: 'Storage capacity in gigabytes',
     examples: ['100', '500', '1000'],
     required: true
+  },
+  {
+    key: 'hostname' as keyof ColumnMapping,
+    label: 'Server Hostname',
+    description: 'Server hostname or name (optional - will be auto-generated if not provided)',
+    examples: ['srv-web-01', 'database-server', 'app.domain.com'],
+    required: false
+  },
+  {
+    key: 'cpuCount' as keyof ColumnMapping,
+    label: 'CPU Count',
+    description: 'Number of CPU cores required (optional - helps select appropriate VM size)',
+    examples: ['2', '4', '8', '16'],
+    required: false
+  },
+  {
+    key: 'ramCapacity' as keyof ColumnMapping,
+    label: 'RAM Capacity (GB)',
+    description: 'Amount of RAM required in GB (optional - helps select appropriate VM size)',
+    examples: ['4', '8', '16', '32'],
+    required: false
+  },
+  {
+    key: 'applicationGroup' as keyof ColumnMapping,
+    label: 'Application Group',
+    description: 'Application or service group classification (optional)',
+    examples: ['Web Servers', 'Database', 'Development', 'Production'],
+    required: false
+  },
+  {
+    key: 'matchType' as keyof ColumnMapping,
+    label: 'Match Type',
+    description: 'Type of matching used for server identification (optional)',
+    examples: ['exact', 'fuzzy', 'partial'],
+    required: false
+  },
+  {
+    key: 'confidenceScore' as keyof ColumnMapping,
+    label: 'Confidence Score',
+    description: 'Confidence level of the server match (optional)',
+    examples: ['1.0', '0.95', '0.8'],
+    required: false
+  },
+  {
+    key: 'environment' as keyof ColumnMapping,
+    label: 'Environment',
+    description: 'Deployment environment (optional)',
+    examples: ['Production', 'Development', 'Staging', 'QA'],
+    required: false
+  },
+  {
+    key: 'fqdn' as keyof ColumnMapping,
+    label: 'FQDN',
+    description: 'Fully Qualified Domain Name (optional)',
+    examples: ['server.domain.com', 'app.company.local'],
+    required: false
+  },
+  {
+    key: 'ipAddresses' as keyof ColumnMapping,
+    label: 'IP Addresses',
+    description: 'Server IP addresses (optional)',
+    examples: ['192.168.1.100', '10.0.0.1', '172.16.0.5'],
+    required: false
+  },
+  {
+    key: 'vmFamily' as keyof ColumnMapping,
+    label: 'VM Family',
+    description: 'Preferred Azure VM family (optional - overrides automatic selection)',
+    examples: ['dsv6', 'dsv5', 'B-series', 'Fsv2'],
+    required: false
   }
 ];
 
@@ -50,7 +120,17 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
     region: null,
     os: null,
     hoursToRun: null,
-    storageCapacity: null
+    storageCapacity: null,
+    hostname: null,
+    cpuCount: null,
+    ramCapacity: null,
+    applicationGroup: null,
+    matchType: null,
+    confidenceScore: null,
+    environment: null,
+    fqdn: null,
+    ipAddresses: null,
+    vmFamily: null
   });
 
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
@@ -85,7 +165,7 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
         }
 
         // Specific validation for numeric fields
-        if ((field.key === 'hoursToRun' || field.key === 'storageCapacity') && hasData) {
+        if ((field.key === 'hoursToRun' || field.key === 'storageCapacity' || field.key === 'cpuCount' || field.key === 'ramCapacity') && hasData) {
           const numericValues = sampleValues.filter(val => val !== null && val !== undefined && val !== '');
           const hasValidNumbers = numericValues.some(val => !isNaN(Number(val)) && Number(val) > 0);
           

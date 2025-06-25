@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileUploader, DataPreview, ColumnMapper, PricingResults } from '@/components';
 import { useSpreadsheetUpload } from '@/hooks';
-import type { ColumnMapping, PricingResult } from '@/types';
+import type { ColumnMapping, PricingResult, SpreadsheetRow } from '@/types';
 
 export default function CalculatorPage() {
   const {
@@ -57,21 +57,22 @@ export default function CalculatorPage() {
    const canProceed = () => {
      switch (currentStep) {
        case 'upload':
-         return !uploadState.isUploading && !uploadState.error && parsedData;
-      case 'mapping':
-        return columnMapping && 
-               columnMapping.region && 
-               columnMapping.os && 
-               columnMapping.hoursToRun && 
-               columnMapping.storageCapacity;
-      case 'calculate':
-        return true;
-      case 'results':
-        return true;
-      default:
-        return false;
-    }
-  };
+         return !!parsedData && !uploadState.error;
+       case 'mapping':
+         // Only check required fields (hostname is optional)
+         return columnMapping &&
+           columnMapping.region &&
+           columnMapping.os &&
+           columnMapping.hoursToRun &&
+           columnMapping.storageCapacity;
+       case 'calculate':
+         return !isCalculating;
+       case 'results':
+         return !!pricingResults;
+       default:
+         return false;
+     }
+   };
 
   const handleNextStep = () => {
     if (!canProceed()) return;
@@ -103,54 +104,43 @@ export default function CalculatorPage() {
     setCalculationError(null);
     
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Import the pricing calculator
+      const { pricingCalculator } = await import('@/lib/calculators');
       
-      // Mock calculation logic
-      const results: PricingResult[] = parsedData.rows.map((row, index) => {
-        const region = row[columnMapping.region!] || 'East US';
-        const os = row[columnMapping.os!] || 'Windows';
-        const hours = parseFloat(row[columnMapping.hoursToRun!]) || 24;
-        const storage = parseFloat(row[columnMapping.storageCapacity!]) || 100;
-        
-        // Mock pricing
-        const vmHourlyRate = os.toLowerCase().includes('linux') ? 0.044 : 0.096;
-        const storageMonthlyRate = 0.002; // per GB per month
-        
-        const vmCost = vmHourlyRate * hours;
-        const storageCost = storageMonthlyRate * storage;
-        const totalCost = vmCost + storageCost;
-        
-                 return {
-           region,
-           os,
-           hoursToRun: hours,
-           storageCapacity: storage,
-           vmCost,
-           storageCost,
-           totalCost,
-           breakdown: {
-             vmDetails: {
-               size: 'Standard_B2s',
-               hourlyRate: vmHourlyRate,
-               totalHours: hours,
-               subtotal: vmCost
-             },
-             storageDetails: {
-               tier: 'Standard HDD',
-               monthlyRate: storageMonthlyRate,
-               capacityGB: storage,
-               subtotal: storageCost
-             }
-           }
-         };
-      });
+      // Prepare spreadsheet rows with mapped columns
+      const spreadsheetRows: SpreadsheetRow[] = parsedData.rows.map(row => ({
+        region: row[columnMapping.region!] || 'eastus',
+        os: row[columnMapping.os!] || 'linux',
+        hoursToRun: parseFloat(row[columnMapping.hoursToRun!]) || 24,
+        storageCapacity: parseFloat(row[columnMapping.storageCapacity!]) || 100,
+        // Include hostname if mapped
+        ...(columnMapping.hostname && { [columnMapping.hostname]: row[columnMapping.hostname] }),
+        // Include CPU count if mapped
+        ...(columnMapping.cpuCount && { 'Logical CPU Count': row[columnMapping.cpuCount] }),
+        // Include RAM capacity if mapped  
+        ...(columnMapping.ramCapacity && { 'RAM Allocated (GB)': row[columnMapping.ramCapacity] }),
+        // Include original row data for reference
+        ...row
+      }));
+      
+             // Calculate pricing using real Azure API
+       const results = await pricingCalculator.calculateBatch(
+         spreadsheetRows,
+         (completed: number, total: number) => {
+           // Optional: Update progress indicator
+           console.log(`Calculation progress: ${completed}/${total}`);
+         }
+       );
       
       setPricingResults(results);
       setCurrentStep('results');
     } catch (error) {
       console.error('Calculation error:', error);
-      setCalculationError(error instanceof Error ? error.message : 'Calculation failed');
+      setCalculationError(
+        error instanceof Error 
+          ? `Calculation failed: ${error.message}` 
+          : 'Calculation failed due to an unknown error'
+      );
     } finally {
       setIsCalculating(false);
     }

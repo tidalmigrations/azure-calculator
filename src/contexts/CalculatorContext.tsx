@@ -42,7 +42,17 @@ const initialState: CalculatorState = {
     region: null,
     os: null,
     hoursToRun: null,
-    storageCapacity: null
+    storageCapacity: null,
+    hostname: null,
+    cpuCount: null,
+    ramCapacity: null,
+    applicationGroup: null,
+    matchType: null,
+    confidenceScore: null,
+    environment: null,
+    fqdn: null,
+    ipAddresses: null,
+    vmFamily: null
   },
   pricingResults: null,
   isCalculating: false,
@@ -183,7 +193,11 @@ export const CalculatorProvider: React.FC<CalculatorProviderProps> = ({ children
       case 'mapping':
         return !!state.parsedData && !state.uploadState.error;
       case 'calculate':
-        return Object.values(state.columnMapping).every(value => value !== null);
+        // Only check required fields (hostname is optional)
+        return !!(state.columnMapping.region && 
+                 state.columnMapping.os && 
+                 state.columnMapping.hoursToRun && 
+                 state.columnMapping.storageCapacity);
       case 'results':
         return !!state.pricingResults;
       default:

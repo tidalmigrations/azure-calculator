@@ -3,7 +3,7 @@
 import React from 'react';
 import type { PricingResult } from '@/types';
 import { formatCurrency } from '@/utils/helpers';
-import { CostBreakdown } from './CostBreakdown';
+import { CostBreakdown } from '@/components';
 
 interface PricingResultsProps {
   results: PricingResult[];
@@ -122,10 +122,22 @@ export const PricingResults: React.FC<PricingResultsProps> = ({
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Hostname
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Region
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   OS
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  VM Size
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  CPU
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  RAM (GB)
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Hours
@@ -141,6 +153,9 @@ export const PricingResults: React.FC<PricingResultsProps> = ({
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Currency
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Details
@@ -202,6 +217,9 @@ const PricingResultRow: React.FC<PricingResultRowProps> = ({ result, index }) =>
     <>
       <tr className="hover:bg-gray-50">
         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+          {result.hostname || result.breakdown?.vmDetails?.hostname || 'Unknown'}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
           {result.region}
         </td>
         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -212,6 +230,17 @@ const PricingResultRow: React.FC<PricingResultRowProps> = ({ result, index }) =>
           }`}>
             {result.os}
           </span>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+            {result.breakdown?.vmDetails?.size || 'Unknown'}
+          </span>
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+          {result.requiredCPUs || result.breakdown?.vmDetails?.cpu || 'Unknown'}
+        </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+          {result.requiredRAM || result.breakdown?.vmDetails?.ram || 'Unknown'}
         </td>
         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
           {result.hoursToRun.toLocaleString()}
@@ -228,6 +257,9 @@ const PricingResultRow: React.FC<PricingResultRowProps> = ({ result, index }) =>
         <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
           {formatCurrency(result.totalCost)}
         </td>
+        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+          {result.breakdown?.vmDetails?.currency || result.breakdown?.storageDetails?.currency || 'USD'}
+        </td>
         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
           <button
             onClick={() => setShowBreakdown(!showBreakdown)}
@@ -239,7 +271,7 @@ const PricingResultRow: React.FC<PricingResultRowProps> = ({ result, index }) =>
       </tr>
       {showBreakdown && result.breakdown && (
         <tr>
-          <td colSpan={8} className="px-6 py-4 bg-gray-50">
+          <td colSpan={13} className="px-6 py-4 bg-gray-50">
             <CostBreakdown breakdown={result.breakdown} />
           </td>
         </tr>
@@ -250,17 +282,22 @@ const PricingResultRow: React.FC<PricingResultRowProps> = ({ result, index }) =>
 
 // Export functions
 const exportToCSV = (results: PricingResult[]) => {
-  const headers = ['Region', 'OS', 'Hours', 'Storage (GB)', 'VM Cost', 'Storage Cost', 'Total Cost'];
+  const headers = ['Hostname', 'Region', 'OS', 'VM Size', 'CPU', 'RAM (GB)', 'Hours', 'Storage (GB)', 'VM Cost', 'Storage Cost', 'Total Cost', 'Currency'];
   const csvContent = [
     headers.join(','),
     ...results.map(result => [
+      result.hostname || result.breakdown?.vmDetails?.hostname || 'Unknown',
       result.region,
       result.os,
+      result.breakdown?.vmDetails?.size || 'Unknown',
+      result.requiredCPUs || result.breakdown?.vmDetails?.cpu || 'Unknown',
+      result.requiredRAM || result.breakdown?.vmDetails?.ram || 'Unknown',
       result.hoursToRun,
       result.storageCapacity,
       result.vmCost,
       result.storageCost,
-      result.totalCost
+      result.totalCost,
+      result.breakdown?.vmDetails?.currency || result.breakdown?.storageDetails?.currency || 'USD'
     ].join(','))
   ].join('\n');
 
