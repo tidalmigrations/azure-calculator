@@ -82,7 +82,8 @@ export default function CalculatorPage() {
         setCurrentStep('mapping');
         break;
       case 'mapping':
-        setCurrentStep('calculate');
+        // Skip the intermediate calculate step and go directly to calculation
+        handleCalculate();
         break;
       case 'calculate':
         handleCalculate();
@@ -100,6 +101,7 @@ export default function CalculatorPage() {
   const handleCalculate = async () => {
     if (!parsedData || !columnMapping) return;
     
+    setCurrentStep('calculate');
     setIsCalculating(true);
     setCalculationError(null);
     
