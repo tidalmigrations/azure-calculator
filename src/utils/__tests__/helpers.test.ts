@@ -7,8 +7,18 @@ import {
   isPositiveNumber,
   safeToNumber,
   generateCacheKey,
-  debounce
+  debounce,
+  detectColumnMappings
 } from '../helpers'
+
+import {
+  AZURE_REGIONS,
+  OS_TYPES,
+  STORAGE_TYPES,
+  SUPPORTED_FILE_TYPES,
+  API_CONFIG,
+  DEFAULTS
+} from '../constants'
 
 describe('Helper Functions', () => {
   describe('formatCurrency', () => {
@@ -219,6 +229,145 @@ describe('Helper Functions', () => {
       jest.advanceTimersByTime(100)
 
       expect(mockFn).toHaveBeenCalledWith('arg1', 'arg2')
+    })
+  })
+
+  describe('detectColumnMappings', () => {
+    it('should detect exact column matches', () => {
+      const headers = ['Region', 'Operating System', 'Hours to Run', 'Storage Capacity']
+      const mapping = detectColumnMappings(headers)
+
+      expect(mapping.region).toBe('Region')
+      expect(mapping.os).toBe('Operating System')
+      expect(mapping.hoursToRun).toBe('Hours to Run')
+      expect(mapping.storageCapacity).toBe('Storage Capacity')
+    })
+
+    it('should detect partial matches', () => {
+      const headers = ['Location', 'OS', 'Runtime', 'Storage']
+      const mapping = detectColumnMappings(headers)
+
+      expect(mapping.region).toBe('Location')
+      expect(mapping.os).toBe('OS')
+      expect(mapping.hoursToRun).toBe('Runtime')
+      expect(mapping.storageCapacity).toBe('Storage')
+    })
+
+    it('should handle case-insensitive matching', () => {
+      const headers = ['REGION', 'operating system version', 'Hours', 'storage allocated (gb)']
+      const mapping = detectColumnMappings(headers)
+
+      expect(mapping.region).toBe('REGION')
+      expect(mapping.os).toBe('operating system version')
+      expect(mapping.hoursToRun).toBe('Hours')
+      expect(mapping.storageCapacity).toBe('storage allocated (gb)')
+    })
+
+    it('should return null for unmatched fields', () => {
+      const headers = ['Name', 'Description', 'Owner']
+      const mapping = detectColumnMappings(headers)
+
+      expect(mapping.region).toBe(null)
+      expect(mapping.os).toBe(null)
+      expect(mapping.hoursToRun).toBe(null)
+      expect(mapping.storageCapacity).toBe(null)
+    })
+
+    it('should handle real-world server data headers', () => {
+      const headers = [
+        'Application Group', 'Server Hostname', 'RAM Allocated (GB)', 
+        'Storage Allocated (GB)', 'Logical CPU Count', 'Operating System Version'
+      ]
+      const mapping = detectColumnMappings(headers)
+
+      expect(mapping.os).toBe('Operating System Version')
+      expect(mapping.storageCapacity).toBe('Storage Allocated (GB)')
+      // These might not be detected without explicit region/hours columns
+      expect(mapping.region).toBe(null)
+      expect(mapping.hoursToRun).toBe(null)
+    })
+
+    it('should prefer more specific matches', () => {
+      const headers = ['Storage', 'Storage Capacity', 'Storage Allocated (GB)']
+      const mapping = detectColumnMappings(headers)
+
+      // Should pick the most specific match
+      expect(mapping.storageCapacity).toBe('Storage Allocated (GB)')
+    })
+  })
+})
+
+describe('Constants', () => {
+  describe('AZURE_REGIONS', () => {
+    it('should contain major Azure regions', () => {
+      expect(AZURE_REGIONS.eastus).toBe('East US')
+      expect(AZURE_REGIONS.westeurope).toBe('West Europe')
+      expect(AZURE_REGIONS.canadacentral).toBe('Canada Central')
+      expect(AZURE_REGIONS.japaneast).toBe('Japan East')
+    })
+
+    it('should have at least 30 regions', () => {
+      expect(Object.keys(AZURE_REGIONS).length).toBeGreaterThanOrEqual(30)
+    })
+
+    it('should have consistent naming format', () => {
+      Object.keys(AZURE_REGIONS).forEach(key => {
+        // Region keys should be lowercase letters and numbers
+        expect(key).toMatch(/^[a-z0-9]+$/)
+        expect(AZURE_REGIONS[key as keyof typeof AZURE_REGIONS]).toMatch(/^[A-Z]/)
+      })
+    })
+  })
+
+  describe('OS_TYPES', () => {
+    it('should define Windows and Linux OS types', () => {
+      expect(OS_TYPES.WINDOWS).toBe('windows')
+      expect(OS_TYPES.LINUX).toBe('linux')
+    })
+
+    it('should only have two OS types', () => {
+      expect(Object.keys(OS_TYPES)).toHaveLength(2)
+    })
+  })
+
+  describe('STORAGE_TYPES', () => {
+    it('should define storage types', () => {
+      expect(STORAGE_TYPES.STANDARD_HDD).toBe('Standard HDD')
+      expect(STORAGE_TYPES.STANDARD_SSD).toBe('Standard SSD')
+      expect(STORAGE_TYPES.PREMIUM_SSD).toBe('Premium SSD')
+    })
+
+    it('should have three storage types', () => {
+      expect(Object.keys(STORAGE_TYPES)).toHaveLength(3)
+    })
+  })
+
+  describe('SUPPORTED_FILE_TYPES', () => {
+    it('should define supported file extensions', () => {
+      expect(SUPPORTED_FILE_TYPES.CSV).toBe('.csv')
+      expect(SUPPORTED_FILE_TYPES.EXCEL).toBe('.xlsx,.xls')
+    })
+
+    it('should have two file type categories', () => {
+      expect(Object.keys(SUPPORTED_FILE_TYPES)).toHaveLength(2)
+    })
+  })
+
+  describe('API_CONFIG', () => {
+    it('should define API configuration', () => {
+      expect(API_CONFIG.BASE_URL).toBe('https://prices.azure.com/api/retail/prices')
+      expect(API_CONFIG.VERSION).toBe('2023-01-01-preview')
+      expect(typeof API_CONFIG.CACHE_DURATION).toBe('number')
+      expect(typeof API_CONFIG.MAX_RETRIES).toBe('number')
+    })
+  })
+
+  describe('DEFAULTS', () => {
+    it('should define default values', () => {
+      expect(typeof DEFAULTS.REGION).toBe('string')
+      expect(typeof DEFAULTS.VM_SIZE).toBe('string')
+      expect(typeof DEFAULTS.STORAGE_TYPE).toBe('string')
+      expect(typeof DEFAULTS.CURRENCY).toBe('string')
     })
   })
 }) 

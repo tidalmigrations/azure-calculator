@@ -1,4 +1,5 @@
 import { OS_TYPES } from './constants';
+import type { ColumnMapping } from '@/types';
 
 /**
  * Formats a number as currency
@@ -158,4 +159,84 @@ export function debounce<T extends (...args: any[]) => any>(
     clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);
   };
+}
+
+/**
+ * Automatically detect column mappings based on header names
+ */
+export function detectColumnMappings(headers: string[]): ColumnMapping {
+  const mapping: ColumnMapping = {
+    region: null,
+    os: null,
+    hoursToRun: null,
+    storageCapacity: null
+  };
+
+  // Normalize headers for comparison
+  const normalizedHeaders = headers.map(h => h.toLowerCase().trim());
+
+  // Define patterns with priority (more specific patterns first)
+  const patterns = {
+    region: [
+      /^(azure\s*)?region$/i,
+      /^location$/i,
+      /^datacenter$/i,
+      /^zone$/i
+    ],
+    os: [
+      /^operating\s*system(\s*version)?$/i,
+      /^os(\s*version)?$/i,
+      /^platform$/i,
+      /^system$/i
+    ],
+    hoursToRun: [
+      /^hours?\s*(to\s*)?(run|running|usage)$/i,
+      /^runtime\s*hours?$/i,
+      /^runtime$/i,
+      /^monthly\s*hours?$/i,
+      /^uptime$/i,
+      /^hours?$/i
+    ],
+    storageCapacity: [
+      /^storage\s*(allocated|capacity|size)?\s*\(?\s*gb\s*\)?$/i,
+      /^storage\s*capacity$/i,
+      /^disk\s*(size|capacity)\s*\(?\s*gb\s*\)?$/i,
+      /^storage$/i,
+      /^disk$/i,
+      /^capacity$/i
+    ]
+  };
+
+  // For each field, find the best match
+  for (const [field, fieldPatterns] of Object.entries(patterns)) {
+    let bestMatch: string | null = null;
+    let bestScore = -1;
+
+    for (let i = 0; i < headers.length; i++) {
+      const header = headers[i];
+      const normalizedHeader = normalizedHeaders[i];
+
+      for (let j = 0; j < fieldPatterns.length; j++) {
+        const pattern = fieldPatterns[j];
+        if (pattern.test(normalizedHeader)) {
+          // Score based on pattern specificity (earlier patterns are more specific)
+          // and length bonus for more specific matches
+          const patternScore = (fieldPatterns.length - j) * 10;
+          const lengthBonus = normalizedHeader.length; // Longer, more specific names get higher score
+          const score = patternScore + lengthBonus;
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestMatch = header;
+          }
+        }
+      }
+    }
+
+    if (bestMatch) {
+      (mapping as any)[field] = bestMatch;
+    }
+  }
+
+  return mapping;
 } 

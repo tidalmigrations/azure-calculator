@@ -1,16 +1,20 @@
 # Azure Cost Calculator
 
-A TypeScript-based web application that integrates with the Azure Retail Prices API to fetch real-time pricing data for Azure Virtual Machines and storage services.
+A TypeScript-based web application that allows users to upload spreadsheets and calculate Azure VM and storage costs using real-time Azure pricing data.
 
 ## Features
 
+- 📊 **Spreadsheet Processing**: Upload CSV and Excel files with intelligent parsing
+- 🎯 **Smart Column Mapping**: Automatic detection and manual mapping of spreadsheet columns
+- 📋 **Data Preview**: Visual preview of uploaded data with statistics
 - 🔌 **Azure API Integration**: Real-time pricing data from Azure Retail Prices API
 - 🌍 **Multi-Region Support**: All major Azure regions (40+ regions)
 - 🖥️ **OS Support**: Windows and Linux VM pricing
 - 💾 **Storage Pricing**: Standard HDD, Standard SSD, and Premium SSD
 - ⚡ **Performance Optimized**: Built-in caching and rate limiting
+- 🎨 **Modern UI**: Drag & drop interface with step-by-step wizard
+- 📱 **Responsive Design**: Works seamlessly on desktop and mobile
 - 🧪 **Interactive Demo**: Test API integration with live data
-- 📱 **Responsive Design**: Modern UI built with Tailwind CSS
 
 ## Getting Started
 
@@ -46,6 +50,23 @@ npm run dev
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Usage
+
+### Calculator Workflow
+1. **Upload**: Drag and drop your CSV or Excel file containing server inventory
+2. **Map Columns**: Map your spreadsheet columns to required fields (Region, OS, Hours, Storage)
+3. **Calculate**: Get accurate Azure cost estimates for your infrastructure
+
+### Supported File Formats
+- **CSV files** (.csv) - with automatic encoding detection
+- **Excel files** (.xlsx, .xls) - reads first worksheet
+- **File size limit**: 10MB maximum
+
+### Required Data Fields
+Your spreadsheet should contain columns for:
+- **Region**: Azure region (e.g., "East US", "West Europe")
+- **Operating System**: Windows or Linux
+- **Hours to Run**: Number of hours per month
+- **Storage Capacity**: Storage size in GB
 
 ### API Demo
 Visit `/api-demo` to test the Azure API integration:
@@ -83,15 +104,28 @@ azure-calculator/
 │   │   ├── api/
 │   │   │   └── azure-prices/          # API proxy route
 │   │   ├── api-demo/                  # Interactive demo page
+│   │   ├── calculator/                # Main calculator interface
 │   │   ├── layout.tsx                 # App layout
 │   │   ├── page.tsx                   # Home page
 │   │   └── globals.css                # Global styles
+│   ├── components/
+│   │   ├── FileUploader.tsx           # Drag & drop file upload
+│   │   ├── DataPreview.tsx            # Data table preview
+│   │   ├── ColumnMapper.tsx           # Column mapping interface
+│   │   └── index.ts                   # Component exports
+│   ├── hooks/
+│   │   ├── useSpreadsheetUpload.ts    # File upload state management
+│   │   └── index.ts                   # Hook exports
 │   ├── lib/
-│   │   └── api/                       # Azure API integration
-│   │       ├── azureClient.ts         # Main API client
-│   │       ├── filters.ts             # Query building utilities
-│   │       ├── testClient.ts          # Testing utilities
-│   │       └── index.ts               # Public exports
+│   │   ├── api/                       # Azure API integration
+│   │   │   ├── azureClient.ts         # Main API client
+│   │   │   ├── filters.ts             # Query building utilities
+│   │   │   ├── testClient.ts          # Testing utilities
+│   │   │   └── index.ts               # Public exports
+│   │   ├── parsers/                   # Spreadsheet parsing
+│   │   │   ├── spreadsheetParser.ts   # CSV/Excel parser
+│   │   │   └── index.ts               # Parser exports
+│   │   └── calculators/               # Pricing calculation logic
 │   ├── types/
 │   │   └── index.ts                   # TypeScript definitions
 │   ├── utils/
@@ -133,29 +167,6 @@ npm start            # Start production server
 npm test             # Run test suite
 npm run lint         # Run ESLint
 ```
-
-## API Features
-
-### Caching
-- Intelligent in-memory caching with TTL
-- Cache statistics and management
-- Configurable cache duration
-
-### Rate Limiting
-- Configurable request limits
-- Window-based rate limiting
-- Automatic retry suggestions
-
-### Error Handling
-- Comprehensive error types
-- Detailed error context
-- Graceful fallback handling
-
-### Filtering
-- Advanced OData filter construction
-- Region name normalization
-- OS and storage type filtering
-- Custom search capabilities
 
 ## License
 
