@@ -1,7 +1,6 @@
 import * as pulumi from "@pulumi/pulumi";
 import * as aws from "@pulumi/aws";
 import * as awsx from "@pulumi/awsx";
-import * as fs from "fs";
 import * as path from "path";
 
 // Configuration
@@ -11,47 +10,26 @@ const region = aws.config.region || "us-east-1";
 // Environment variables with defaults
 const projectName = process.env.PROJECT_NAME || "azure-calculator";
 const environment = process.env.ENVIRONMENT || "dev";
-const lambdaMemorySize = parseInt(process.env.LAMBDA_MEMORY_SIZE || "1024");
-const lambdaTimeout = parseInt(process.env.LAMBDA_TIMEOUT || "30");
-const lambdaDescription = process.env.LAMBDA_DESCRIPTION || "Azure Calculator Lambda Function";
+const lambdaMemorySize = parseInt(process.env.LAMBDA_MEMORY_SIZE || "2048"); // Increased for container
+const lambdaTimeout = parseInt(process.env.LAMBDA_TIMEOUT || "60"); // Increased for container
+const lambdaDescription = process.env.LAMBDA_DESCRIPTION || "Azure Calculator Lambda Function (Container)";
 
-// 1. S3 Bucket for Lambda code
-const lambdaCodeBucket = new aws.s3.Bucket(`${projectName}-lambda-code`, {
-    tags: {
-        Project: projectName,
-        Environment: environment,
-    },
+// 1. ECR Repository to store the Docker image
+const repo = new awsx.ecr.Repository(`${projectName}-ecr-repo`, {
+    forceDelete: true,
 });
 
-// Create a deployment package by zipping the standalone build
-const deploymentPackage = new pulumi.asset.AssetArchive({
-    ".": new pulumi.asset.FileArchive("../.lambda"),
+// 2. Build and publish the Docker image to ECR
+const image = new awsx.ecr.Image(`${projectName}-ecr-image`, {
+    repositoryUrl: repo.url,
+    context: "..", // Context is the root of the project
+    platform: "linux/amd64",
 });
 
-// Upload the Lambda code to S3
-const lambdaCodeObject = new aws.s3.BucketObject(`${projectName}-lambda-code-object`, {
-    bucket: lambdaCodeBucket.id,
-    key: "lambda-code.zip",
-    source: deploymentPackage,
-    tags: {
-        Project: projectName,
-        Environment: environment,
-    },
-});
-
-// 2. IAM Role for Lambda
+// 3. IAM Role for Lambda
 const lambdaRole = new aws.iam.Role(`${projectName}-lambda-role`, {
-    assumeRolePolicy: JSON.stringify({
-        Version: "2012-10-17",
-        Statement: [
-            {
-                Action: "sts:AssumeRole",
-                Effect: "Allow",
-                Principal: {
-                    Service: "lambda.amazonaws.com",
-                },
-            },
-        ],
+    assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({
+        Service: "lambda.amazonaws.com",
     }),
     tags: {
         Project: projectName,
@@ -60,19 +38,24 @@ const lambdaRole = new aws.iam.Role(`${projectName}-lambda-role`, {
 });
 
 // Attach the basic execution policy to the role
-const lambdaRolePolicyAttachment = new aws.iam.RolePolicyAttachment(`${projectName}-lambda-role-policy`, {
+new aws.iam.RolePolicyAttachment(`${projectName}-lambda-role-policy`, {
     role: lambdaRole.name,
     policyArn: "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
 });
 
-// 3. Lambda Function using S3 code
+// Attach ECR permissions to the role
+new aws.iam.RolePolicyAttachment(`${projectName}-ecr-access`, {
+    role: lambdaRole.name,
+    policyArn: "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole",
+});
+
+
+// 4. Lambda Function using Container Image
 const lambdaFunction = new aws.lambda.Function(`${projectName}-lambda`, {
     name: projectName,
-    runtime: aws.lambda.Runtime.NodeJS18dX,
-    handler: "lambda-handler.handler",
+    packageType: "Image",
+    imageUri: image.imageUri,
     role: lambdaRole.arn,
-    s3Bucket: lambdaCodeBucket.id,
-    s3Key: lambdaCodeObject.key,
     memorySize: lambdaMemorySize,
     timeout: lambdaTimeout,
     description: lambdaDescription,
@@ -88,15 +71,15 @@ const lambdaFunction = new aws.lambda.Function(`${projectName}-lambda`, {
         Environment: environment,
     },
 }, {
-    dependsOn: [lambdaRolePolicyAttachment, lambdaCodeObject],
+    dependsOn: [repo, image],
 });
 
-// 4. Lambda Function URL with CORS Configuration
+// 5. Lambda Function URL with CORS Configuration
 const functionUrl = new aws.lambda.FunctionUrl(`${projectName}-function-url`, {
     functionName: lambdaFunction.name,
-    authorizationType: "NONE", // Public access as requested
+    authorizationType: "NONE", // Public access
     cors: {
-        allowCredentials: false,
+        allowCredentials: true,
         allowHeaders: ["*"],
         allowMethods: ["*"],
         allowOrigins: ["*"],
@@ -109,23 +92,17 @@ const functionUrl = new aws.lambda.FunctionUrl(`${projectName}-function-url`, {
 export const lambdaFunctionName = lambdaFunction.name;
 export const lambdaFunctionArn = lambdaFunction.arn;
 export const functionUrlEndpoint = functionUrl.functionUrl;
-export const lambdaRoleArn = lambdaRole.arn;
-export const lambdaCodeBucketName = lambdaCodeBucket.id;
-export const projectNameOutput = projectName;
-export const environmentOutput = environment;
+export const ecrRepositoryUrl = repo.url;
+export const imageUri = image.imageUri;
 
-// Output instructions for testing
 export const testingInstructions = pulumi.interpolate`
-Deployment completed! 
+Deployment completed!
 
-🚀 Your ${projectName} is now deployed to AWS Lambda!
+🚀 Your ${projectName} is now deployed to AWS Lambda using a container image!
 
 Function URL: ${functionUrl.functionUrl}
 
 Test your deployment:
-1. Open the Function URL in your browser
-2. Navigate to /calculator to test the calculator page
-3. Test API endpoints like /api/azure-prices
-
-CORS is configured to allow all origins, methods, and headers for development.
+1. Open the Function URL in your browser. It should show the full Next.js application.
+2. Test the file upload functionality on the main page.
 `;

@@ -7,7 +7,9 @@ set -e
 
 # Load environment variables from .env file
 if [ -f .env ]; then
-    export $(grep -v '^#' .env | xargs)
+    set -a
+    source .env
+    set +a
 else
     echo "❌ .env file not found. Please create one with AWS_PROFILE, AWS_REGION, and STACK_NAME"
     exit 1

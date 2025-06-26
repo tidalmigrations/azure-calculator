@@ -1,14 +1,34 @@
-# AWS Lambda Infrastructure for Next.js
+# AWS Lambda Infrastructure - DEPRECATED
 
-Infrastructure as Code (IaC) for deploying Next.js applications to AWS Lambda using Pulumi and TypeScript.
+> ⚠️ **DEPRECATED**: This AWS Lambda infrastructure has been deprecated. The project has been migrated to Vercel for simpler deployment and better performance.
 
-## Features
+This directory contains the legacy AWS Lambda Infrastructure as Code (IaC) setup that was previously used to deploy Next.js applications using Pulumi and TypeScript.
 
+## Migration Notice
+
+The project now deploys directly to Vercel, which provides:
+- Zero-configuration deployment for Next.js
+- Automatic scaling and edge optimization
+- Simplified environment variable management
+- Built-in CI/CD integration
+
+## Legacy Infrastructure
+
+This infrastructure provided:
 - AWS Lambda deployment with Function URLs
 - S3 backend for Pulumi state management
 - Automated deployment and cleanup scripts
 - Environment-based configuration
-- Security-focused setup with encryption
+
+## Cleanup
+
+If you have existing infrastructure deployed using these scripts, you can clean it up using:
+
+```bash
+./cleanup.sh
+```
+
+This will safely remove all AWS resources that were created by this infrastructure.
 
 ## Project Structure
 

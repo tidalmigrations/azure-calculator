@@ -58,11 +58,16 @@ pulumi stack select "${STACK_NAME}" || pulumi stack init "${STACK_NAME}"
 echo "🌍 Setting AWS region in Pulumi config"
 pulumi config set aws:region "${AWS_REGION}"
 
-# Build the Next.js application (from parent directory)
-echo "🔨 Building Lambda application"
-cd ..
-npm run build:lambda
-cd infra
+# Authenticate Docker with AWS ECR
+echo "🔐 Authenticating Docker with AWS ECR"
+aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
+
+# The Next.js application is built by Pulumi inside the container,
+# so the local build step is no longer needed here.
+# echo "🔨 Building Lambda application"
+# cd ..
+# npm run build:lambda
+# cd infra
 
 # Deploy infrastructure
 echo "🚀 Deploying infrastructure"
