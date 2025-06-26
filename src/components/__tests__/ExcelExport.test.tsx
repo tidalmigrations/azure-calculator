@@ -155,7 +155,7 @@ describe('Excel Export Functionality', () => {
     const worksheetData = [headers, ...dataRows];
     
     // Add totals row
-    const totalRowIndex = dataRows.length + 2;
+    const _totalRowIndex = dataRows.length + 2;
     const vmCostColumn = 'I';
     const storageCostColumn = 'J';
     const totalCostColumn = 'K';

@@ -2,7 +2,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { SUPPORTED_FILE_TYPES } from '@/utils/constants';
+// import { SUPPORTED_FILE_TYPES } from '@/utils/constants';
 import type { FileUploadState } from '@/types';
 
 interface FileUploaderProps {

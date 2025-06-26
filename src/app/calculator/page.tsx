@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { FileUploader, DataPreview, ColumnMapper, PricingResults } from '@/components';
 import { useSpreadsheetUpload } from '@/hooks';
-import type { ColumnMapping, PricingResult, SpreadsheetRow } from '@/types';
+import type { PricingResult, SpreadsheetRow } from '@/types';
 
 export default function CalculatorPage() {
   const {

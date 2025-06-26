@@ -180,7 +180,7 @@ export const CalculatorProvider: React.FC<CalculatorProviderProps> = ({ children
   };
 
   // Navigation helpers
-  const goToStep = (step: CalculatorState['currentStep']) => {
+  const goToStep = (_step: CalculatorState['currentStep']) => {
     // Add validation logic here if needed
     dispatch({ type: 'SET_UPLOAD_STATE', payload: {} }); // Trigger re-render with new step
     // For now, we'll handle step changes in the components

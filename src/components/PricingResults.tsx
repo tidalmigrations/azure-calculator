@@ -211,7 +211,7 @@ interface PricingResultRowProps {
   index: number;
 }
 
-const PricingResultRow: React.FC<PricingResultRowProps> = ({ result, index }) => {
+const PricingResultRow: React.FC<PricingResultRowProps> = ({ result, index: _index }) => {
   const [showBreakdown, setShowBreakdown] = React.useState(false);
 
   return (
@@ -290,7 +290,7 @@ const exportToExcel = (results: PricingResult[]) => {
   const headers = ['Hostname', 'Region', 'OS', 'VM Size', 'CPU', 'RAM (GB)', 'Hours', 'Storage (GB)', 'VM Cost', 'Storage Cost', 'Total Cost', 'Currency'];
   
   // Prepare data rows
-  const dataRows = results.map((result, index) => [
+  const dataRows = results.map((result, _index) => [
     result.hostname || result.breakdown?.vmDetails?.hostname || 'Unknown',
     result.region,
     result.os,
@@ -309,7 +309,7 @@ const exportToExcel = (results: PricingResult[]) => {
   const worksheetData = [headers, ...dataRows];
   
   // Add totals row
-  const totalRowIndex = dataRows.length + 2; // +1 for header, +1 for 0-indexed
+  const _totalRowIndex = dataRows.length + 2; // +1 for header, +1 for 0-indexed
   const vmCostColumn = 'I'; // VM Cost column (9th column, I)
   const storageCostColumn = 'J'; // Storage Cost column (10th column, J)
   const totalCostColumn = 'K'; // Total Cost column (11th column, K)

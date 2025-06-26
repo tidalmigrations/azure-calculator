@@ -1,4 +1,4 @@
-import { SpreadsheetRow, PricingResult, CostBreakdown, AzureRetailPrice } from '@/types';
+import { SpreadsheetRow, CostBreakdown, AzureRetailPrice } from '@/types';
 
 /**
  * Base interface for all pricing calculators

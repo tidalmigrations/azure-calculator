@@ -69,7 +69,7 @@ export class PricingCacheManager {
         try {
           vmPrices = await azureClient.getVMPricesFromCalculator(region, os);
           console.log(`✅ Phase 3.2 - VM Calculator API: ${region}:${os} -> ${vmPrices.length} prices`);
-        } catch (error) {
+        } catch (_error) {
           console.warn(`⚠️  Phase 3.2 - Calculator API failed for ${region}:${os}, using Retail API`);
           vmPrices = await azureClient.getVMPrices(region, os);
           console.log(`✅ Phase 3.2 - VM Retail API: ${region}:${os} -> ${vmPrices.length} prices`);
