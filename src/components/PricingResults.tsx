@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import * as XLSX from 'xlsx';
 import type { PricingResult } from '@/types';
 import { formatCurrency } from '@/utils/helpers';
 import { CostBreakdown } from '@/components';
@@ -186,10 +187,10 @@ export const PricingResults: React.FC<PricingResultsProps> = ({
           </div>
           <div className="flex space-x-3">
             <button
-              onClick={() => exportToCSV(results)}
-              className="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              onClick={() => exportToExcel(results)}
+              className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 transition-colors"
             >
-              📊 Export CSV
+              📊 Export Excel
             </button>
             <button
               onClick={() => exportToJSON(results)}
@@ -281,31 +282,114 @@ const PricingResultRow: React.FC<PricingResultRowProps> = ({ result, index }) =>
 };
 
 // Export functions
-const exportToCSV = (results: PricingResult[]) => {
+const exportToExcel = (results: PricingResult[]) => {
+  // Create workbook and worksheet
+  const workbook = XLSX.utils.book_new();
+  
+  // Prepare data with headers
   const headers = ['Hostname', 'Region', 'OS', 'VM Size', 'CPU', 'RAM (GB)', 'Hours', 'Storage (GB)', 'VM Cost', 'Storage Cost', 'Total Cost', 'Currency'];
-  const csvContent = [
-    headers.join(','),
-    ...results.map(result => [
-      result.hostname || result.breakdown?.vmDetails?.hostname || 'Unknown',
-      result.region,
-      result.os,
-      result.breakdown?.vmDetails?.size || 'Unknown',
-      result.requiredCPUs || result.breakdown?.vmDetails?.cpu || 'Unknown',
-      result.requiredRAM || result.breakdown?.vmDetails?.ram || 'Unknown',
-      result.hoursToRun,
-      result.storageCapacity,
-      result.vmCost,
-      result.storageCost,
-      result.totalCost,
-      result.breakdown?.vmDetails?.currency || result.breakdown?.storageDetails?.currency || 'USD'
-    ].join(','))
-  ].join('\n');
+  
+  // Prepare data rows
+  const dataRows = results.map((result, index) => [
+    result.hostname || result.breakdown?.vmDetails?.hostname || 'Unknown',
+    result.region,
+    result.os,
+    result.breakdown?.vmDetails?.size || 'Unknown',
+    result.requiredCPUs || result.breakdown?.vmDetails?.cpu || 'Unknown',
+    result.requiredRAM || result.breakdown?.vmDetails?.ram || 'Unknown',
+    result.hoursToRun,
+    result.storageCapacity,
+    result.vmCost,
+    result.storageCost,
+    result.totalCost,
+    result.breakdown?.vmDetails?.currency || result.breakdown?.storageDetails?.currency || 'USD'
+  ]);
 
-  const blob = new Blob([csvContent], { type: 'text/csv' });
+  // Create worksheet data
+  const worksheetData = [headers, ...dataRows];
+  
+  // Add totals row
+  const totalRowIndex = dataRows.length + 2; // +1 for header, +1 for 0-indexed
+  const vmCostColumn = 'I'; // VM Cost column (9th column, I)
+  const storageCostColumn = 'J'; // Storage Cost column (10th column, J)
+  const totalCostColumn = 'K'; // Total Cost column (11th column, K)
+  
+  const totalsRow = [
+    'TOTALS', '', '', '', '', '', '', '',
+    '', '', '', // Placeholders for formula cells
+    'USD'
+  ];
+  
+  worksheetData.push(totalsRow);
+  
+  // Create worksheet
+  const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+  
+  // Add formulas to the totals row after worksheet creation
+  const totalsRowIndexForFormulas = worksheetData.length - 1;
+  worksheet[XLSX.utils.encode_cell({ r: totalsRowIndexForFormulas, c: 8 })] = { 
+    f: `SUM(${vmCostColumn}2:${vmCostColumn}${totalsRowIndexForFormulas})` 
+  }; // VM Cost total
+  worksheet[XLSX.utils.encode_cell({ r: totalsRowIndexForFormulas, c: 9 })] = { 
+    f: `SUM(${storageCostColumn}2:${storageCostColumn}${totalsRowIndexForFormulas})` 
+  }; // Storage Cost total
+  worksheet[XLSX.utils.encode_cell({ r: totalsRowIndexForFormulas, c: 10 })] = { 
+    f: `SUM(${totalCostColumn}2:${totalCostColumn}${totalsRowIndexForFormulas})` 
+  }; // Grand total
+  
+  // Set column widths
+  const columnWidths = [
+    { wch: 20 }, // Hostname
+    { wch: 15 }, // Region
+    { wch: 35 }, // OS
+    { wch: 18 }, // VM Size
+    { wch: 8 },  // CPU
+    { wch: 12 }, // RAM (GB)
+    { wch: 10 }, // Hours
+    { wch: 12 }, // Storage (GB)
+    { wch: 12 }, // VM Cost
+    { wch: 12 }, // Storage Cost
+    { wch: 12 }, // Total Cost
+    { wch: 10 }  // Currency
+  ];
+  worksheet['!cols'] = columnWidths;
+  
+  // Style the header row
+  const headerRange = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+  for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+    if (!worksheet[cellAddress]) continue;
+    worksheet[cellAddress].s = {
+      font: { bold: true },
+      fill: { fgColor: { rgb: 'E5E7EB' } }, // Gray background
+      alignment: { horizontal: 'center' }
+    };
+  }
+  
+  // Style the totals row
+  for (let col = 0; col < headers.length; col++) {
+    const cellAddress = XLSX.utils.encode_cell({ r: totalsRowIndexForFormulas, c: col });
+    if (!worksheet[cellAddress]) continue;
+    worksheet[cellAddress].s = {
+      font: { bold: true },
+      fill: { fgColor: { rgb: 'DBEAFE' } }, // Blue background
+      alignment: { horizontal: col === 0 ? 'left' : 'right' }
+    };
+  }
+  
+  // Add worksheet to workbook
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Azure Cost Analysis');
+  
+  // Generate Excel file and download
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([excelBuffer], { 
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+  });
+  
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'azure-cost-calculation.csv';
+  a.download = `azure-cost-calculation-${new Date().toISOString().split('T')[0]}.xlsx`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

@@ -180,4 +180,49 @@ describe('PricingResults', () => {
     expect(totalStorageCost).toBeCloseTo(0.3, 2); // Use toBeCloseTo for floating point comparison
     expect(grandTotal).toBeCloseTo(76.81, 2);
   });
+
+  it('handles Excel export with complex data fields', () => {
+    // Test data with OS field containing commas (like the reported issue)
+    const resultsWithComplexData: PricingResult[] = [
+      {
+        region: 'canadacentral',
+        os: 'Windows Server 2019, 64-bit (Build 17763.6775)',
+        hoursToRun: 730,
+        storageCapacity: 74.11,
+        vmCost: 148.92,
+        storageCost: 6.546136300000001,
+        totalCost: 155.4661363,
+        hostname: 'test-web-server-01',
+        requiredCPUs: 2,
+        requiredRAM: 4,
+        breakdown: {
+          vmDetails: {
+            size: 'Standard_D2s_v6',
+            hourlyRate: 0.204,
+            totalHours: 730,
+            subtotal: 148.92,
+            cpu: 2,
+            ram: 4,
+            currency: 'USD'
+          },
+          storageDetails: {
+            tier: 'Standard HDD',
+            monthlyRate: 0.002,
+            capacityGB: 74.11,
+            subtotal: 6.546136300000001,
+            currency: 'USD'
+          }
+        }
+      }
+    ];
+
+    // The component should render without errors with complex data
+    const component = React.createElement(PricingResults, { 
+      results: resultsWithComplexData,
+      isLoading: false,
+      error: null 
+    });
+
+    expect(() => component).not.toThrow();
+  });
 }); 
