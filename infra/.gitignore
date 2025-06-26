@@ -1,0 +1,9 @@
+/bin/
+/node_modules/
+
+# Pulumi
+.pulumi-bucket-name
+*.log
+.env
+
+Pulumi.dev.yaml
