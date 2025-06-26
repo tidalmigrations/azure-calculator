@@ -2,6 +2,8 @@ import { SpreadsheetRow, PricingResult, CostBreakdown } from '@/types';
 import { vmCalculator } from './vmCalculator';
 import { storageCalculator } from './storageCalculator';
 import { CalculationResult, VMCalculationResult, StorageCalculationResult } from './types';
+import { PricingAggregator } from './pricingAggregator';
+import { PricingCacheManager } from './pricingCacheManager';
 
 /**
  * Main Pricing Calculator
@@ -15,6 +17,74 @@ import { CalculationResult, VMCalculationResult, StorageCalculationResult } from
  * - NEXT_PUBLIC_BATCH_MAX_DELAY: Maximum delay between batches in ms (default: 5000)
  */
 export class PricingCalculator {
+  private cacheManager?: PricingCacheManager;
+
+  /**
+   * Phase 3.1, 3.2, 3.4: Pre-fetch and cache pricing data for optimal performance
+   * This method implements the core caching strategy from the improvement plan
+   */
+  async prepareOptimizedCalculation(rows: SpreadsheetRow[]): Promise<void> {
+    console.log('🚀 Starting optimized calculation preparation for', rows.length, 'rows');
+    
+    // Phase 3.1: Data Aggregation
+    const requirements = PricingAggregator.aggregateRequirements(rows);
+    
+    // Calculate and log efficiency gains
+    const efficiency = PricingAggregator.calculateEfficiencyGain(rows.length, requirements);
+    console.log('📊 Efficiency Analysis:', {
+      originalApiCalls: efficiency.originalApiCalls,
+      optimizedApiCalls: efficiency.optimizedApiCalls,
+      reduction: `${efficiency.reductionPercentage}%`,
+      timeSavings: `~${Math.round((efficiency.originalApiCalls - efficiency.optimizedApiCalls) * 2)}s`
+    });
+
+    // Phase 3.2 & 3.3: Batch API Fetching and In-Memory Caching
+    this.cacheManager = new PricingCacheManager();
+    await this.cacheManager.batchFetchPricing(requirements);
+
+    // Phase 3.4: Configure calculators to use cache
+    vmCalculator.setCacheManager(this.cacheManager);
+    storageCalculator.setCacheManager(this.cacheManager);
+
+    console.log('✅ Optimized calculation preparation complete');
+  }
+
+  /**
+   * Calculate pricing for multiple rows with optimized caching
+   */
+  async calculateBatchOptimized(
+    rows: SpreadsheetRow[], 
+    onProgress?: (completed: number, total: number) => void
+  ): Promise<PricingResult[]> {
+    console.log('🚀 CALCULATOR: Starting calculateBatchOptimized for', rows.length, 'rows');
+    
+    // Prepare optimized calculation (Phases 3.1, 3.2, 3.4)
+    console.log('🚀 CALCULATOR: Calling prepareOptimizedCalculation');
+    await this.prepareOptimizedCalculation(rows);
+    console.log('🚀 CALCULATOR: prepareOptimizedCalculation completed');
+
+    // Now run the batch calculation with cached data
+    console.log('🚀 CALCULATOR: Starting calculateBatch with cached data');
+    const results = await this.calculateBatch(rows, onProgress);
+    console.log('🚀 CALCULATOR: calculateBatch completed, returning', results.length, 'results');
+    
+    return results;
+  }
+
+  /**
+   * Get cache statistics
+   */
+  getCacheStats() {
+    return this.cacheManager?.getCacheStats() || null;
+  }
+
+  /**
+   * Clear the pricing cache
+   */
+  clearCache(): void {
+    this.cacheManager?.clearCache();
+  }
+
   /**
    * Calculate pricing for a single spreadsheet row
    */
@@ -66,6 +136,9 @@ export class PricingCalculator {
     const results: PricingResult[] = [];
     const total = rows.length;
     
+    // Check if we have cache available to reduce delays
+    const hasCacheManager = !!this.cacheManager;
+    
     // Process in smaller batches to avoid overwhelming the API
     // Configurable batch size to prevent rate limiting
     const batchSize = parseInt(process.env.NEXT_PUBLIC_CALCULATION_BATCH_SIZE || '2');
@@ -81,9 +154,11 @@ export class PricingCalculator {
           const result = await this.calculateRow(row);
           batchResults.push({ status: 'fulfilled', value: result });
           
-          // Configurable delay between individual calculations
+          // Reduced delay between individual calculations when cache is available
           if (batch.length > 1) {
-            const individualDelay = parseInt(process.env.NEXT_PUBLIC_INDIVIDUAL_CALCULATION_DELAY || '500');
+            const individualDelay = hasCacheManager 
+              ? 50  // Minimal delay with cache
+              : parseInt(process.env.NEXT_PUBLIC_INDIVIDUAL_CALCULATION_DELAY || '500');
             await new Promise(resolve => setTimeout(resolve, individualDelay));
           }
         } catch (error) {
@@ -117,16 +192,23 @@ export class PricingCalculator {
         onProgress(results.length, total);
       }
       
-      // Configurable delay between batches to be more respectful to the API
-      // This helps avoid rate limiting issues
+      // Significantly reduced delay between batches when cache is available
       if (i + batchSize < rows.length) {
-        const baseBatchDelay = parseInt(process.env.NEXT_PUBLIC_BATCH_BASE_DELAY || '2000');
-        const batchDelayIncrement = parseInt(process.env.NEXT_PUBLIC_BATCH_DELAY_INCREMENT || '500');
-        const maxBatchDelay = parseInt(process.env.NEXT_PUBLIC_BATCH_MAX_DELAY || '5000');
-        
-        const delay = Math.min(baseBatchDelay + (Math.floor(i / batchSize) * batchDelayIncrement), maxBatchDelay);
-        console.log(`⏳ Waiting ${delay}ms before next batch to respect rate limits...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        if (hasCacheManager) {
+          // Minimal delay with cache - just enough to prevent UI blocking
+          const delay = 100;
+          console.log(`⚡ Cache-optimized: Waiting ${delay}ms before next batch...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        } else {
+          // Original rate limiting for non-cached calculations
+          const baseBatchDelay = parseInt(process.env.NEXT_PUBLIC_BATCH_BASE_DELAY || '2000');
+          const batchDelayIncrement = parseInt(process.env.NEXT_PUBLIC_BATCH_DELAY_INCREMENT || '500');
+          const maxBatchDelay = parseInt(process.env.NEXT_PUBLIC_BATCH_MAX_DELAY || '5000');
+          
+          const delay = Math.min(baseBatchDelay + (Math.floor(i / batchSize) * batchDelayIncrement), maxBatchDelay);
+          console.log(`⏳ Waiting ${delay}ms before next batch to respect rate limits...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
     }
     

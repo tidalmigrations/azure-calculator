@@ -2,15 +2,19 @@ import { AzureRetailPrice, AzureApiResponse, CachedResponse, ApiError } from '@/
 import { buildVMFilter, buildStorageFilter, PriceFilters, buildFilter } from './filters';
 
 /**
- * Rate limiter with exponential backoff retry logic
+ * Adaptive rate limiter that adjusts based on API responses
  */
 class RateLimiter {
   private requests: number[] = [];
-  private readonly maxRequests: number;
+  private maxRequests: number;
+  private readonly initialMaxRequests: number;
   private readonly windowMs: number;
+  private consecutiveSuccesses = 0;
+  private lastRateLimitTime = 0;
 
   constructor(maxRequests = 10, windowMs = 60000) {
     this.maxRequests = maxRequests;
+    this.initialMaxRequests = maxRequests;
     this.windowMs = windowMs;
   }
 
@@ -38,6 +42,35 @@ class RateLimiter {
    */
   reset(): void {
     this.requests = [];
+    this.maxRequests = this.initialMaxRequests;
+    this.consecutiveSuccesses = 0;
+    this.lastRateLimitTime = 0;
+  }
+
+  /**
+   * Record a successful API call - gradually increase rate limit
+   */
+  recordSuccess(): void {
+    this.consecutiveSuccesses++;
+    
+    // After 10 consecutive successes, try to increase rate limit slightly
+    if (this.consecutiveSuccesses >= 10 && this.maxRequests < this.initialMaxRequests) {
+      this.maxRequests = Math.min(this.maxRequests + 1, this.initialMaxRequests);
+      this.consecutiveSuccesses = 0;
+      console.log(`📈 Rate limit increased to ${this.maxRequests} requests per ${this.windowMs}ms`);
+    }
+  }
+
+  /**
+   * Record a rate limit hit - immediately reduce rate limit
+   */
+  recordRateLimit(): void {
+    this.lastRateLimitTime = Date.now();
+    this.consecutiveSuccesses = 0;
+    
+    // Reduce rate limit by 50% when we hit a 429
+    this.maxRequests = Math.max(1, Math.floor(this.maxRequests * 0.5));
+    console.log(`📉 Rate limit reduced to ${this.maxRequests} requests per ${this.windowMs}ms due to 429 response`);
   }
 }
 
@@ -116,8 +149,8 @@ export class AzureRetailPricesClient {
     this.apiVersion = process.env.NEXT_PUBLIC_AZURE_API_VERSION || '2023-01-01-preview';
     this.cacheTtl = parseInt(process.env.NEXT_PUBLIC_CACHE_TTL || '3600000'); // 1 hour default
     
-    // More conservative rate limiting to avoid API issues
-    const maxRequests = parseInt(process.env.NEXT_PUBLIC_API_RATE_LIMIT_REQUESTS || '3'); // Reduced from 5 to 3
+    // Intelligent rate limiting - start optimistic, adapt based on 429 responses
+    const maxRequests = parseInt(process.env.NEXT_PUBLIC_API_RATE_LIMIT_REQUESTS || '10'); // More optimistic default
     const windowMs = parseInt(process.env.NEXT_PUBLIC_API_RATE_LIMIT_WINDOW || '60000');
     this.rateLimiter = new RateLimiter(maxRequests, windowMs);
     
@@ -200,6 +233,9 @@ export class AzureRetailPricesClient {
         if (!response.ok) {
           // Handle specific HTTP status codes
           if (response.status === 429) {
+            // Record rate limit hit for adaptive limiting
+            this.rateLimiter.recordRateLimit();
+            
             // Extract retry-after header if available
             const retryAfter = response.headers.get('retry-after');
             const retryAfterMs = retryAfter ? parseInt(retryAfter) * 1000 : this.rateLimiter.getRetryAfter();
@@ -225,11 +261,11 @@ export class AzureRetailPricesClient {
         nextPageLink = data.NextPageLink || null;
         requestCount++;
         
-        // Progressive delay between requests based on request count
-        if (nextPageLink) {
-          const delay = Math.min(500 + (requestCount * 200), 2000); // 500ms to 2s
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
+        // Record successful request for adaptive rate limiting
+        this.rateLimiter.recordSuccess();
+        
+        // No artificial delays - let requests proceed at full speed
+        // Rate limiting is handled reactively via 429 responses and exponential backoff
         
       } while (nextPageLink);
 
@@ -353,6 +389,9 @@ export class AzureRetailPricesClient {
       if (!response.ok) {
         // Handle specific HTTP status codes
         if (response.status === 429) {
+          // Record rate limit hit for adaptive limiting
+          this.rateLimiter.recordRateLimit();
+          
           const retryAfter = response.headers.get('retry-after');
           const retryAfterMs = retryAfter ? parseInt(retryAfter) * 1000 : this.rateLimiter.getRetryAfter();
           
@@ -450,6 +489,9 @@ export class AzureRetailPricesClient {
         data: prices,
         expiry: Date.now() + this.cacheTtl
       });
+      
+      // Record successful request for adaptive rate limiting
+      this.rateLimiter.recordSuccess();
       
       console.log(`✅ Server Selection - Found ${prices.length} ${os} VMs from Calculator API`);
       return prices;

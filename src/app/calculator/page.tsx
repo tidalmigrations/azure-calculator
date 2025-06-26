@@ -125,8 +125,8 @@ export default function CalculatorPage() {
         ...row
       }));
       
-             // Calculate pricing using real Azure API
-       const results = await pricingCalculator.calculateBatch(
+             // Calculate pricing using optimized caching (Phases 3.1, 3.2, 3.4)
+       const results = await pricingCalculator.calculateBatchOptimized(
          spreadsheetRows,
          (completed: number, total: number) => {
            // Optional: Update progress indicator

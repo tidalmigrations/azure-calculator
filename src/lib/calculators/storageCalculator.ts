@@ -8,6 +8,7 @@ import {
   CostItem,
   DEFAULT_STORAGE_TYPES
 } from './types';
+import { PricingCacheManager } from './pricingCacheManager';
 
 /**
  * Storage Pricing Calculator
@@ -16,6 +17,14 @@ import {
 export class StorageCalculator implements PricingCalculator {
   name = 'Azure Storage';
   requiredFields = ['region', 'storageCapacity'];
+  private cacheManager?: PricingCacheManager;
+
+  /**
+   * Set cache manager for Phase 3.4 - cache-aware calculations
+   */
+  setCacheManager(cacheManager: PricingCacheManager): void {
+    this.cacheManager = cacheManager;
+  }
 
   /**
    * Calculate storage costs for a spreadsheet row
@@ -50,8 +59,21 @@ export class StorageCalculator implements PricingCalculator {
       const storageType = input.storageType || 'premium-ssd';
       console.log('💾 STORAGE DEBUG - Using storage type:', storageType);
       
-      const storagePrices = await azureClient.getStoragePrices(normalizedRegion, storageType);
-      console.log('💾 STORAGE DEBUG - API returned', storagePrices.length, 'storage prices');
+      // Phase 3.4: Try cache first, fallback to API calls
+      let storagePrices;
+      if (this.cacheManager) {
+        storagePrices = this.cacheManager.getStoragePrices(normalizedRegion, storageType);
+        if (storagePrices) {
+          console.log(`🚀 Phase 3.4 - Using cached storage prices: ${storagePrices.length} prices`);
+        }
+      }
+      
+      // Fallback to API calls if no cache or cache miss
+      if (!storagePrices) {
+        console.log(`🔄 Phase 3.4 - Cache miss, fetching from API`);
+        storagePrices = await azureClient.getStoragePrices(normalizedRegion, storageType);
+        console.log('💾 STORAGE DEBUG - API returned', storagePrices.length, 'storage prices');
+      }
       
       if (storagePrices.length === 0) {
         console.warn(`💾 STORAGE DEBUG - No storage prices found for ${storageType} in ${normalizedRegion}, using fallback pricing`);

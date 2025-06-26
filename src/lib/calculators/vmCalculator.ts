@@ -9,6 +9,7 @@ import {
   DEFAULT_VM_SIZES,
   OSDetectionResult
 } from './types';
+import { PricingCacheManager } from './pricingCacheManager';
 
 /**
  * VM Pricing Calculator
@@ -17,6 +18,14 @@ import {
 export class VMCalculator implements PricingCalculator {
   name = 'Azure Virtual Machines';
   requiredFields = ['region', 'os', 'hoursToRun'];
+  private cacheManager?: PricingCacheManager;
+
+  /**
+   * Set cache manager for Phase 3.4 - cache-aware calculations
+   */
+  setCacheManager(cacheManager: PricingCacheManager): void {
+    this.cacheManager = cacheManager;
+  }
 
   /**
    * Calculate VM costs for a spreadsheet row
@@ -42,15 +51,26 @@ export class VMCalculator implements PricingCalculator {
       
       console.log(`🎯 Server Selection - VM Calculation for: ${input.hostname} (${normalizedRegion}, ${input.os})`);
       
-      // Get VM prices from Azure Calculator API (more up-to-date than Retail Prices API)
+      // Phase 3.4: Try cache first, fallback to API calls
       let vmPrices;
-      try {
-        vmPrices = await azureClient.getVMPricesFromCalculator(normalizedRegion, input.os);
-        console.log(`🔍 Server Selection - Using Calculator API, found ${vmPrices.length} VMs`);
-      } catch (error) {
-        console.warn('Calculator API failed, falling back to Retail Prices API:', error);
-        vmPrices = await azureClient.getVMPrices(normalizedRegion, input.os);
-        console.log(`🔍 Server Selection - Using Retail API fallback, found ${vmPrices.length} VMs`);
+      if (this.cacheManager) {
+        vmPrices = this.cacheManager.getVMPrices(normalizedRegion, input.os);
+        if (vmPrices) {
+          console.log(`🚀 Phase 3.4 - Using cached VM prices: ${vmPrices.length} VMs`);
+        }
+      }
+      
+      // Fallback to API calls if no cache or cache miss
+      if (!vmPrices) {
+        console.log(`🔄 Phase 3.4 - Cache miss, fetching from API`);
+        try {
+          vmPrices = await azureClient.getVMPricesFromCalculator(normalizedRegion, input.os);
+          console.log(`🔍 Server Selection - Using Calculator API, found ${vmPrices.length} VMs`);
+        } catch (error) {
+          console.warn('Calculator API failed, falling back to Retail Prices API:', error);
+          vmPrices = await azureClient.getVMPrices(normalizedRegion, input.os);
+          console.log(`🔍 Server Selection - Using Retail API fallback, found ${vmPrices.length} VMs`);
+        }
       }
       
       if (vmPrices.length === 0) {

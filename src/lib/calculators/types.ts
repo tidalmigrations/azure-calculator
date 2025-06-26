@@ -1,4 +1,4 @@
-import { SpreadsheetRow, PricingResult, CostBreakdown } from '@/types';
+import { SpreadsheetRow, PricingResult, CostBreakdown, AzureRetailPrice } from '@/types';
 
 /**
  * Base interface for all pricing calculators
@@ -16,6 +16,28 @@ export interface CostItem {
   serviceName: string;
   cost: number;
   details: Record<string, any>;
+}
+
+/**
+ * Pricing requirements aggregated from spreadsheet data
+ * Used for Phase 3.1 - Data Aggregation
+ */
+export interface PricingRequirements {
+  vmRequirements: Set<string>; // Set of "region:os" combinations
+  storageRequirements: Set<string>; // Set of "region:storageType" combinations
+  uniqueRegions: Set<string>;
+  uniqueOSTypes: Set<'windows' | 'linux'>;
+  uniqueStorageTypes: Set<'standard-hdd' | 'standard-ssd' | 'premium-ssd'>;
+}
+
+/**
+ * Pricing cache structure for Phase 3.3 - In-Memory Caching
+ */
+export interface PricingCache {
+  vmPrices: Map<string, AzureRetailPrice[]>; // Key: "region:os"
+  storagePrices: Map<string, AzureRetailPrice[]>; // Key: "region:storageType"
+  cacheTimestamp: number;
+  cacheTtl: number;
 }
 
 /**
