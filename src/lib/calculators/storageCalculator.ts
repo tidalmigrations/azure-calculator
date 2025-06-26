@@ -123,6 +123,10 @@ export class StorageCalculator implements PricingCalculator {
       // Check if it's a rate limit error and provide specific messaging
       if (error instanceof Error && error.message.includes('Rate limit exceeded')) {
         console.warn('💾 STORAGE DEBUG - Rate limit exceeded, using fallback pricing for storage calculation');
+      } else if (error instanceof Error && error.message.includes('429')) {
+        console.warn('💾 STORAGE DEBUG - Too many requests (429), using fallback pricing for storage calculation');
+      } else if (error instanceof Error && error.message.includes('RATE_LIMIT_EXCEEDED')) {
+        console.warn('💾 STORAGE DEBUG - API rate limit exceeded, using fallback pricing for storage calculation');
       }
       
       // Always fallback to estimated pricing instead of throwing

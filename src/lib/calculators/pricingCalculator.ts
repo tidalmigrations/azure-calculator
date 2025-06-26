@@ -6,6 +6,13 @@ import { CalculationResult, VMCalculationResult, StorageCalculationResult } from
 /**
  * Main Pricing Calculator
  * Orchestrates VM and storage calculations to produce final pricing results
+ * 
+ * Configurable via environment variables:
+ * - NEXT_PUBLIC_CALCULATION_BATCH_SIZE: Number of servers per batch (default: 2)
+ * - NEXT_PUBLIC_INDIVIDUAL_CALCULATION_DELAY: Delay between calculations in ms (default: 500)
+ * - NEXT_PUBLIC_BATCH_BASE_DELAY: Base delay between batches in ms (default: 2000)
+ * - NEXT_PUBLIC_BATCH_DELAY_INCREMENT: Progressive delay increment in ms (default: 500)
+ * - NEXT_PUBLIC_BATCH_MAX_DELAY: Maximum delay between batches in ms (default: 5000)
  */
 export class PricingCalculator {
   /**
@@ -60,15 +67,30 @@ export class PricingCalculator {
     const total = rows.length;
     
     // Process in smaller batches to avoid overwhelming the API
-    // Reduced batch size to be more respectful of rate limits
-    const batchSize = 3;
+    // Configurable batch size to prevent rate limiting
+    const batchSize = parseInt(process.env.NEXT_PUBLIC_CALCULATION_BATCH_SIZE || '2');
     
     for (let i = 0; i < rows.length; i += batchSize) {
       const batch = rows.slice(i, i + batchSize);
       
-      // Process batch in parallel
-      const batchPromises = batch.map(row => this.calculateRow(row));
-      const batchResults = await Promise.allSettled(batchPromises);
+      // Process batch sequentially instead of parallel to reduce API load
+      const batchResults: PromiseSettledResult<PricingResult>[] = [];
+      
+      for (const row of batch) {
+        try {
+          const result = await this.calculateRow(row);
+          batchResults.push({ status: 'fulfilled', value: result });
+          
+          // Configurable delay between individual calculations
+          if (batch.length > 1) {
+            const individualDelay = parseInt(process.env.NEXT_PUBLIC_INDIVIDUAL_CALCULATION_DELAY || '500');
+            await new Promise(resolve => setTimeout(resolve, individualDelay));
+          }
+        } catch (error) {
+          console.error('Individual calculation error:', error);
+          batchResults.push({ status: 'rejected', reason: error });
+        }
+      }
       
       // Collect results and handle any rejections
       for (const result of batchResults) {
@@ -95,10 +117,16 @@ export class PricingCalculator {
         onProgress(results.length, total);
       }
       
-      // Longer delay between batches to be more respectful to the API
+      // Configurable delay between batches to be more respectful to the API
       // This helps avoid rate limiting issues
       if (i + batchSize < rows.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Increased from 200ms to 1000ms
+        const baseBatchDelay = parseInt(process.env.NEXT_PUBLIC_BATCH_BASE_DELAY || '2000');
+        const batchDelayIncrement = parseInt(process.env.NEXT_PUBLIC_BATCH_DELAY_INCREMENT || '500');
+        const maxBatchDelay = parseInt(process.env.NEXT_PUBLIC_BATCH_MAX_DELAY || '5000');
+        
+        const delay = Math.min(baseBatchDelay + (Math.floor(i / batchSize) * batchDelayIncrement), maxBatchDelay);
+        console.log(`⏳ Waiting ${delay}ms before next batch to respect rate limits...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
     

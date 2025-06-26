@@ -40,15 +40,26 @@ npm run dev
 
 ### Configuration
 
-#### CORS Settings
-For production deployment, configure allowed origins via environment variable (see `.env.example`):
+Copy `.env.example` to `.env.local` and adjust settings as needed.
 
+#### Key Configuration Options
+
+**API Rate Limiting:**
 ```bash
-# Allow specific domains (recommended for production)
-CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
+NEXT_PUBLIC_API_RATE_LIMIT_REQUESTS=3    # Max requests per minute
+NEXT_PUBLIC_CACHE_TTL=3600000            # Cache duration (1 hour)
+```
 
-# Allow all origins (default, suitable for development)
-CORS_ALLOWED_ORIGINS=*
+**Batch Processing:**
+```bash
+NEXT_PUBLIC_CALCULATION_BATCH_SIZE=2     # Servers per batch
+NEXT_PUBLIC_BATCH_BASE_DELAY=2000        # Delay between batches (ms)
+```
+
+**CORS Settings:**
+```bash
+CORS_ALLOWED_ORIGINS=*                   # Development
+CORS_ALLOWED_ORIGINS=https://yourdomain.com  # Production
 ```
 
 ## Usage

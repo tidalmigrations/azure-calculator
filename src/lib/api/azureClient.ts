@@ -2,7 +2,7 @@ import { AzureRetailPrice, AzureApiResponse, CachedResponse, ApiError } from '@/
 import { buildVMFilter, buildStorageFilter, PriceFilters, buildFilter } from './filters';
 
 /**
- * Rate limiter to prevent API abuse
+ * Rate limiter with exponential backoff retry logic
  */
 class RateLimiter {
   private requests: number[] = [];
@@ -32,17 +32,82 @@ class RateLimiter {
     const oldestRequest = Math.min(...this.requests);
     return Math.max(0, this.windowMs - (Date.now() - oldestRequest));
   }
+
+  /**
+   * Reset rate limiter (useful after extended delays)
+   */
+  reset(): void {
+    this.requests = [];
+  }
+}
+
+/**
+ * Exponential backoff utility for handling retries
+ */
+class ExponentialBackoff {
+  private readonly maxRetries: number;
+  private readonly baseDelayMs: number;
+  private readonly maxDelayMs: number;
+  private readonly jitterFactor: number;
+
+  constructor(maxRetries = 3, baseDelayMs = 1000, maxDelayMs = 30000, jitterFactor = 0.1) {
+    this.maxRetries = maxRetries;
+    this.baseDelayMs = baseDelayMs;
+    this.maxDelayMs = maxDelayMs;
+    this.jitterFactor = jitterFactor;
+  }
+
+  /**
+   * Calculate delay for retry attempt with exponential backoff and jitter
+   */
+  calculateDelay(attempt: number): number {
+    const exponentialDelay = this.baseDelayMs * Math.pow(2, attempt);
+    const cappedDelay = Math.min(exponentialDelay, this.maxDelayMs);
+    
+    // Add jitter to prevent thundering herd
+    const jitter = cappedDelay * this.jitterFactor * Math.random();
+    return cappedDelay + jitter;
+  }
+
+  /**
+   * Execute function with exponential backoff retry logic
+   */
+  async execute<T>(fn: () => Promise<T>, shouldRetry: (error: any) => boolean = () => true): Promise<T> {
+    let lastError: any;
+    
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error;
+        
+        // Don't retry if we've exhausted attempts or if error shouldn't be retried
+        if (attempt === this.maxRetries || !shouldRetry(error)) {
+          throw error;
+        }
+        
+        const delay = this.calculateDelay(attempt);
+        console.warn(`⏳ Retry attempt ${attempt + 1}/${this.maxRetries} after ${Math.round(delay)}ms delay. Error:`, 
+          error instanceof Error ? error.message : String(error));
+        
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    throw lastError;
+  }
 }
 
 /**
  * Azure Retail Prices API Client
- * Handles API calls with caching, rate limiting, and error handling
+ * Handles API calls with caching, rate limiting, exponential backoff, and error handling
  */
 export class AzureRetailPricesClient {
   private readonly baseUrl: string;
   private readonly apiVersion: string;
   private readonly cache = new Map<string, CachedResponse>();
   private readonly rateLimiter: RateLimiter;
+  private readonly backoff: ExponentialBackoff;
   private readonly cacheTtl: number;
 
   constructor() {
@@ -52,13 +117,21 @@ export class AzureRetailPricesClient {
     this.cacheTtl = parseInt(process.env.NEXT_PUBLIC_CACHE_TTL || '3600000'); // 1 hour default
     
     // More conservative rate limiting to avoid API issues
-    const maxRequests = parseInt(process.env.NEXT_PUBLIC_API_RATE_LIMIT_REQUESTS || '5'); // Reduced from 10 to 5
+    const maxRequests = parseInt(process.env.NEXT_PUBLIC_API_RATE_LIMIT_REQUESTS || '3'); // Reduced from 5 to 3
     const windowMs = parseInt(process.env.NEXT_PUBLIC_API_RATE_LIMIT_WINDOW || '60000');
     this.rateLimiter = new RateLimiter(maxRequests, windowMs);
+    
+    // Configure exponential backoff for retries
+    this.backoff = new ExponentialBackoff(
+      3,    // maxRetries
+      2000, // baseDelayMs - start with 2 seconds
+      60000, // maxDelayMs - cap at 60 seconds
+      0.2   // jitterFactor - 20% jitter
+    );
   }
 
   /**
-   * Fetch prices with pagination support
+   * Fetch prices with pagination support, rate limiting, and retry logic
    */
   async fetchPrices(filter: string): Promise<AzureRetailPrice[]> {
     const cacheKey = `prices:${filter}`;
@@ -66,10 +139,28 @@ export class AzureRetailPricesClient {
     
     // Return cached data if valid
     if (cached && cached.expiry > Date.now()) {
+      console.log(`📦 Using cached data for filter: ${filter.substring(0, 100)}...`);
       return cached.data;
     }
 
-    // Check rate limit
+    // Execute with exponential backoff retry logic
+    return this.backoff.execute(async () => {
+      return this.fetchPricesInternal(filter, cacheKey);
+    }, (error) => {
+      // Retry on rate limit errors, network errors, and server errors
+      if (error instanceof ApiError) {
+        return error.status === 429 || error.status >= 500;
+      }
+      // Retry on network errors
+      return error instanceof TypeError && error.message.includes('fetch');
+    });
+  }
+
+  /**
+   * Internal fetch implementation with rate limiting
+   */
+  private async fetchPricesInternal(filter: string, cacheKey: string): Promise<AzureRetailPrice[]> {
+    // Check rate limit before making request
     if (!this.rateLimiter.canMakeRequest()) {
       const retryAfter = this.rateLimiter.getRetryAfter();
       throw new ApiError(
@@ -103,9 +194,24 @@ export class AzureRetailPricesClient {
           url = `${this.baseUrl}?filter=${encodeURIComponent(filter)}`;
         }
         
+        console.log(`🌐 Making API request: ${url.substring(0, 150)}...`);
         const response = await fetch(url);
         
         if (!response.ok) {
+          // Handle specific HTTP status codes
+          if (response.status === 429) {
+            // Extract retry-after header if available
+            const retryAfter = response.headers.get('retry-after');
+            const retryAfterMs = retryAfter ? parseInt(retryAfter) * 1000 : this.rateLimiter.getRetryAfter();
+            
+            throw new ApiError(
+              `Azure API rate limit exceeded. Retry after ${Math.ceil(retryAfterMs / 1000)} seconds.`,
+              429,
+              'RATE_LIMIT_EXCEEDED',
+              { retryAfter: retryAfterMs, url, filter }
+            );
+          }
+          
           throw new ApiError(
             `Azure API Error: ${response.statusText}`,
             response.status,
@@ -119,9 +225,10 @@ export class AzureRetailPricesClient {
         nextPageLink = data.NextPageLink || null;
         requestCount++;
         
-        // Small delay between requests to be respectful
+        // Progressive delay between requests based on request count
         if (nextPageLink) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          const delay = Math.min(500 + (requestCount * 200), 2000); // 500ms to 2s
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
         
       } while (nextPageLink);
@@ -132,6 +239,7 @@ export class AzureRetailPricesClient {
         expiry: Date.now() + this.cacheTtl
       });
       
+      console.log(`✅ Successfully fetched ${prices.length} prices with ${requestCount} API calls`);
       return prices;
       
     } catch (error) {
@@ -202,9 +310,27 @@ export class AzureRetailPricesClient {
     
     // Return cached data if valid
     if (cached && cached.expiry > Date.now()) {
+      console.log(`📦 Using cached VM data for ${os} in ${region}`);
       return cached.data;
     }
 
+    // Execute with exponential backoff retry logic
+    return this.backoff.execute(async () => {
+      return this.getVMPricesFromCalculatorInternal(region, os, cacheKey);
+    }, (error) => {
+      // Retry on rate limit errors, network errors, and server errors
+      if (error instanceof ApiError) {
+        return error.status === 429 || error.status >= 500;
+      }
+      // Retry on network errors
+      return error instanceof TypeError && error.message.includes('fetch');
+    });
+  }
+
+  /**
+   * Internal VM prices fetch implementation with rate limiting
+   */
+  private async getVMPricesFromCalculatorInternal(region: string, os: 'windows' | 'linux', cacheKey: string): Promise<AzureRetailPrice[]> {
     // Check rate limit
     if (!this.rateLimiter.canMakeRequest()) {
       const retryAfter = this.rateLimiter.getRetryAfter();
@@ -221,9 +347,23 @@ export class AzureRetailPricesClient {
       console.log(`🔍 VM DEBUG - Region conversion: '${region}' -> '${calculatorRegion}'`);
       const url = `/api/azure-calculator-prices?region=${calculatorRegion}`;
       
+      console.log(`🌐 Making VM Calculator API request: ${url}`);
       const response = await fetch(url);
       
       if (!response.ok) {
+        // Handle specific HTTP status codes
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('retry-after');
+          const retryAfterMs = retryAfter ? parseInt(retryAfter) * 1000 : this.rateLimiter.getRetryAfter();
+          
+          throw new ApiError(
+            `VM Calculator API rate limit exceeded. Retry after ${Math.ceil(retryAfterMs / 1000)} seconds.`,
+            429,
+            'RATE_LIMIT_EXCEEDED',
+            { retryAfter: retryAfterMs, url, region, calculatorRegion }
+          );
+        }
+        
         throw new ApiError(
           `Calculator API Error: ${response.statusText}`,
           response.status,
@@ -418,6 +558,24 @@ export class AzureRetailPricesClient {
     return {
       size: this.cache.size,
       keys: Array.from(this.cache.keys())
+    };
+  }
+
+  /**
+   * Reset rate limiter (useful for recovery from rate limiting)
+   */
+  resetRateLimit(): void {
+    this.rateLimiter.reset();
+    console.log('🔄 Rate limiter reset - ready for new requests');
+  }
+
+  /**
+   * Get current rate limit status
+   */
+  getRateLimitStatus(): { canMakeRequest: boolean; retryAfterMs: number } {
+    return {
+      canMakeRequest: this.rateLimiter.canMakeRequest(),
+      retryAfterMs: this.rateLimiter.getRetryAfter()
     };
   }
 }

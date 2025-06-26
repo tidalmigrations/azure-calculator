@@ -138,11 +138,20 @@ export default function CalculatorPage() {
       setCurrentStep('results');
     } catch (error) {
       console.error('Calculation error:', error);
-      setCalculationError(
-        error instanceof Error 
-          ? `Calculation failed: ${error.message}` 
-          : 'Calculation failed due to an unknown error'
-      );
+      
+      let errorMessage = 'Calculation failed due to an unknown error';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Rate limit exceeded') || 
+            error.message.includes('429') || 
+            error.message.includes('Too Many Requests')) {
+          errorMessage = 'Azure API rate limit exceeded. Please wait a few minutes and try again. The calculation will use fallback pricing for any affected items.';
+        } else {
+          errorMessage = `Calculation failed: ${error.message}`;
+        }
+      }
+      
+      setCalculationError(errorMessage);
     } finally {
       setIsCalculating(false);
     }

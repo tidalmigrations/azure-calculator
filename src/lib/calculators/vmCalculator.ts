@@ -106,7 +106,11 @@ export class VMCalculator implements PricingCalculator {
       
       // Check if it's a rate limit error and provide specific messaging
       if (error instanceof Error && error.message.includes('Rate limit exceeded')) {
-        console.warn('Rate limit exceeded, using fallback pricing for VM calculation');
+        console.warn('🚦 VM CALC - Rate limit exceeded, using fallback pricing for VM calculation');
+      } else if (error instanceof Error && error.message.includes('429')) {
+        console.warn('🚦 VM CALC - Too many requests (429), using fallback pricing for VM calculation');
+      } else if (error instanceof Error && error.message.includes('RATE_LIMIT_EXCEEDED')) {
+        console.warn('🚦 VM CALC - API rate limit exceeded, using fallback pricing for VM calculation');
       }
       
       // Always fallback to estimated pricing instead of throwing
