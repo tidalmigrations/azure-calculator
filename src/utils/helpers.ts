@@ -24,6 +24,11 @@ export function formatNumber(num: number): string {
  * Detects OS type from a string
  */
 export function detectOSType(osString: string): 'windows' | 'linux' {
+  // Handle null, undefined, or non-string values
+  if (!osString || typeof osString !== 'string') {
+    return OS_TYPES.LINUX; // Default to Linux
+  }
+  
   const normalized = osString.toLowerCase();
   
   // Windows indicators
@@ -74,6 +79,11 @@ export function isValidRegion(region: string): boolean {
  * Normalizes Azure region name to standard format
  */
 export function normalizeRegion(region: string): string {
+  // Handle null, undefined, or non-string values
+  if (!region || typeof region !== 'string') {
+    return 'eastus'; // Default to East US
+  }
+  
   const regionMap: Record<string, string> = {
     'east us': 'eastus',
     'east us 2': 'eastus2',

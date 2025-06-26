@@ -124,7 +124,7 @@ describe('AzureRetailPricesClient', () => {
       await expect(client.fetchPrices("serviceName eq 'Virtual Machines'"))
         .rejects
         .toThrow(ApiError);
-    });
+    }, 20000); // Increase timeout to 20 seconds to account for exponential backoff retries
   });
 
   describe('getVMPrices', () => {
