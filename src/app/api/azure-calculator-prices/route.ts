@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { handleCorsOptions, getCorsHeaders } from '@/utils/cors';
 
 /**
  * Azure Pricing Calculator API Proxy
@@ -15,9 +16,12 @@ export async function GET(request: NextRequest) {
     const region = searchParams.get('region');
     
     if (!region) {
+      const origin = request.headers.get('Origin');
+      const corsHeaders = getCorsHeaders(origin || undefined);
+      
       return NextResponse.json(
         { error: 'Region parameter is required' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -36,12 +40,15 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       console.error('Azure Calculator API error:', response.status, response.statusText);
+      const origin = request.headers.get('Origin');
+      const corsHeaders = getCorsHeaders(origin || undefined);
+      
       return NextResponse.json(
         { 
           error: `Azure Calculator API error: ${response.status} ${response.statusText}`,
           details: await response.text()
         },
-        { status: response.status }
+        { status: response.status, headers: corsHeaders }
       );
     }
 
@@ -51,28 +58,30 @@ export async function GET(request: NextRequest) {
     const offerCount = data.offers ? Object.keys(data.offers).length : 0;
     console.log(`Azure Calculator API response: ${offerCount} offers for region ${region}`);
     
-    return NextResponse.json(data);
+    // Return response with CORS headers
+    const origin = request.headers.get('Origin');
+    const corsHeaders = getCorsHeaders(origin || undefined);
+    
+    return NextResponse.json(data, {
+      headers: corsHeaders
+    });
     
   } catch (error) {
     console.error('Calculator API route error:', error);
+    const origin = request.headers.get('Origin');
+    const corsHeaders = getCorsHeaders(origin || undefined);
+    
     return NextResponse.json(
       { 
         error: 'Internal server error',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
 
 // Handle CORS preflight requests
 export async function OPTIONS(request: NextRequest) {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+  return handleCorsOptions(request);
 } 

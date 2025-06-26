@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { vmCalculator } from '@/lib/calculators';
+import { handleCorsOptions, getCorsHeaders } from '@/utils/cors';
 
 /**
  * Azure Retail Prices API Proxy
@@ -18,9 +19,12 @@ export async function GET(request: NextRequest) {
     const skip = searchParams.get('skip');
     
     if (!filter) {
+      const origin = request.headers.get('Origin');
+      const corsHeaders = getCorsHeaders(origin || undefined);
+      
       return NextResponse.json(
         { error: 'Filter parameter is required' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -43,12 +47,15 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       console.error('Azure API error:', response.status, response.statusText);
+      const origin = request.headers.get('Origin');
+      const corsHeaders = getCorsHeaders(origin || undefined);
+      
       return NextResponse.json(
         { 
           error: `Azure API error: ${response.status} ${response.statusText}`,
           details: await response.text()
         },
-        { status: response.status }
+        { status: response.status, headers: corsHeaders }
       );
     }
 
@@ -57,16 +64,25 @@ export async function GET(request: NextRequest) {
     // Log some basic info about the response
     console.log(`Azure API response: ${data.Items?.length || 0} items, NextPageLink: ${!!data.NextPageLink}`);
     
-    return NextResponse.json(data);
+    // Return response with CORS headers
+    const origin = request.headers.get('Origin');
+    const corsHeaders = getCorsHeaders(origin || undefined);
+    
+    return NextResponse.json(data, {
+      headers: corsHeaders
+    });
     
   } catch (error) {
     console.error('API route error:', error);
+    const origin = request.headers.get('Origin');
+    const corsHeaders = getCorsHeaders(origin || undefined);
+    
     return NextResponse.json(
       { 
         error: 'Internal server error',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
@@ -82,9 +98,12 @@ export async function POST(request: NextRequest) {
     
     // Validate required fields
     if (!body.hostname || !body.region || !body.os || !body.hoursToRun) {
+      const origin = request.headers.get('Origin');
+      const corsHeaders = getCorsHeaders(origin || undefined);
+      
       return NextResponse.json(
         { error: 'Missing required fields: hostname, region, os, hoursToRun' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -93,7 +112,10 @@ export async function POST(request: NextRequest) {
     
     console.log('🧪 VM Calculation Result:', JSON.stringify(result, null, 2));
     
-    // Return result in a format similar to the batch calculation
+    // Return result in a format similar to the batch calculation with CORS headers
+    const origin = request.headers.get('Origin');
+    const corsHeaders = getCorsHeaders(origin || undefined);
+    
     return NextResponse.json({
       servers: [{
         hostname: body.hostname,
@@ -112,28 +134,26 @@ export async function POST(request: NextRequest) {
         requiredCPUs: result.details.requiredCPUs,
         requiredRAM: result.details.requiredRAM
       }]
+    }, {
+      headers: corsHeaders
     });
     
   } catch (error) {
     console.error('VM calculation error:', error);
+    const origin = request.headers.get('Origin');
+    const corsHeaders = getCorsHeaders(origin || undefined);
+    
     return NextResponse.json(
       { 
         error: 'VM calculation failed',
         details: error instanceof Error ? error.message : 'Unknown error'
       },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
 
 // Handle CORS preflight requests
 export async function OPTIONS(request: NextRequest) {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    },
-  });
+  return handleCorsOptions(request);
 } 

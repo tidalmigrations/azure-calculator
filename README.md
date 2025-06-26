@@ -38,6 +38,19 @@ npm run dev
 
 4. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### Configuration
+
+#### CORS Settings
+For production deployment, configure allowed origins via environment variable (see `.env.example`):
+
+```bash
+# Allow specific domains (recommended for production)
+CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
+
+# Allow all origins (default, suitable for development)
+CORS_ALLOWED_ORIGINS=*
+```
+
 ## Usage
 
 1. **Upload**: Drop your CSV or Excel file on the home page
