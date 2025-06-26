@@ -367,7 +367,7 @@ describe('Excel Export Functionality', () => {
     const callArgs = (XLSX.utils.aoa_to_sheet as jest.Mock).mock.calls[0][0];
     const firstDataRow = callArgs[1]; // Skip header row
     
-    expect(firstDataRow[0]).toBe('test-web-server-01'); // Hostname (string)
+          expect(firstDataRow[0]).toBe('test-web-server-01'); // Hostname (string)
     expect(firstDataRow[1]).toBe('canadacentral'); // Region (string)
     expect(firstDataRow[6]).toBe(730); // Hours (number)
     expect(firstDataRow[7]).toBe(74.11); // Storage capacity (number)
