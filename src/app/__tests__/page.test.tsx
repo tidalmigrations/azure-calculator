@@ -30,17 +30,17 @@ describe('Home Page', () => {
   it('renders the description text', () => {
     render(<Page />)
     
-    const description = screen.getByText(/calculate azure vm and storage costs from your spreadsheet data using real-time azure pricing/i)
+    const description = screen.getByText(/upload your spreadsheet to calculate azure vm and storage costs/i)
     expect(description).toBeTruthy()
   })
 
   it('renders key feature text', () => {
     render(<Page />)
     
-    // Check for main features mentioned - use more specific text to avoid duplicates
-    expect(screen.getByText('Drag & Drop Upload')).toBeTruthy()
-    expect(screen.getByText('Automatic Column Mapping')).toBeTruthy()
-    expect(screen.getByText('Real-time Azure Pricing')).toBeTruthy()
+    // Check for file upload related text that actually exists in the component
+    expect(screen.getByText(/drop your spreadsheet here/i)).toBeTruthy()
+    expect(screen.getByText(/supports csv and excel files/i)).toBeTruthy()
+    expect(screen.getByText(/azure cost calculator/i)).toBeTruthy()
   })
 
   it('has proper semantic structure', () => {

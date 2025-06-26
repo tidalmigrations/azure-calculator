@@ -33,3 +33,17 @@ if (typeof global.TextDecoder === "undefined") {
   global.TextDecoder = TextDecoder;
   global.TextEncoder = TextEncoder;
 }
+
+// Setup DOM environment for tests
+beforeEach(() => {
+  // Ensure document.body exists and is clean
+  if (!document.body) {
+    document.body = document.createElement("body");
+  }
+  document.body.innerHTML = "";
+});
+
+afterEach(() => {
+  // Clean up DOM after each test
+  document.body.innerHTML = "";
+});

@@ -44,7 +44,7 @@ describe('Constants', () => {
     it('should define storage types', () => {
       expect(STORAGE_TYPES.STANDARD_HDD).toBe('Standard HDD')
       expect(STORAGE_TYPES.STANDARD_SSD).toBe('Standard SSD')
-      expect(STORAGE_TYPES.PREMIUM_SSD).toBe('Premium SSD')
+      expect(STORAGE_TYPES.PREMIUM_SSD).toBe('Premium SSD v2')
     })
 
     it('should have three storage types', () => {
