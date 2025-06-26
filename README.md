@@ -18,7 +18,7 @@ A TypeScript-based web application for calculating Azure VM and storage costs fr
 - Node.js 18.x or higher
 - npm or yarn
 
-### Installation
+### Local Development
 
 1. Clone the repository:
 ```bash
@@ -40,27 +40,40 @@ npm run dev
 
 ### Configuration
 
-Copy `.env.example` to `.env.local` and adjust settings as needed.
+Copy `.env.example` to `.env.local` and adjust settings as needed. All environment variables are optional and have sensible defaults.
 
-#### Key Configuration Options
+## Deployment
 
-**API Rate Limiting:**
+### Deploy to Vercel
+
+This application is optimized for deployment on Vercel:
+
+1. **Install Vercel CLI:**
 ```bash
-NEXT_PUBLIC_API_RATE_LIMIT_REQUESTS=3    # Max requests per minute
-NEXT_PUBLIC_CACHE_TTL=3600000            # Cache duration (1 hour)
+npm i -g vercel
 ```
 
-**Batch Processing:**
+2. **Login and link your project:**
 ```bash
-NEXT_PUBLIC_CALCULATION_BATCH_SIZE=2     # Servers per batch
-NEXT_PUBLIC_BATCH_BASE_DELAY=2000        # Delay between batches (ms)
+vercel login
+vercel link
 ```
 
-**CORS Settings:**
+3. **Configure environment variables (optional):**
 ```bash
-CORS_ALLOWED_ORIGINS=*                   # Development
-CORS_ALLOWED_ORIGINS=https://yourdomain.com  # Production
+# Use the helper script to set up environment variables
+./scripts/setup-vercel-env.sh
+
+# Or set them manually via Vercel dashboard
+# Go to https://vercel.com/dashboard → Your Project → Settings → Environment Variables
 ```
+
+4. **Deploy:**
+```bash
+vercel --prod
+```
+
+The application will work with default settings without any environment variables configured.
 
 ## Usage
 
@@ -70,25 +83,16 @@ CORS_ALLOWED_ORIGINS=https://yourdomain.com  # Production
 
 ### Required Data Fields
 
-Your spreadsheet must contain these columns for the calculator to work:
+Your spreadsheet must contain these columns:
 
-#### Essential Fields (Required)
-- **RAM Allocated (GB)**: Memory allocation in gigabytes (e.g., 4, 8, 16)
-- **Storage Allocated (GB)**: Storage capacity in gigabytes (e.g., 120.5, 500)
-- **Logical CPU Count**: Number of virtual CPUs (e.g., 2, 4, 8)
-- **Operating System Version**: OS type and version (e.g., "Ubuntu 20.04 LTS (64-bit)", "Microsoft Windows Server 2019 (64-bit)")
-- **Region**: Azure region identifier (e.g., "eastus", "westus2", "centralus")
-- **Hours to run**: Number of hours per month the server will run (e.g., 730 for 24/7)
+- **RAM Allocated (GB)**: Memory allocation in gigabytes
+- **Storage Allocated (GB)**: Storage capacity in gigabytes  
+- **Logical CPU Count**: Number of virtual CPUs
+- **Operating System Version**: OS type and version
+- **Region**: Azure region identifier
+- **Hours to run**: Number of hours per month the server will run
 
-#### Optional Fields (For Better Organization)
-- **Application Group**: Logical grouping of servers (e.g., "E-Commerce Prod", "CRM Dev")
-- **Server Hostname**: Server identifier
-- **Environment**: Environment type (e.g., "Production", "Development", "QA")
-- **VM Family**: Azure VM family (e.g., "dsv6") - will be auto-detected if not provided
-
-### Sample Data Format
-
-See `data2/sample_servers.csv` for a complete example with the correct column structure.
+See `data2/sample_servers.csv` for a complete example.
 
 ## Project Structure
 
@@ -98,39 +102,16 @@ azure-calculator/
 │   ├── app/
 │   │   ├── api/azure-prices/          # API proxy route
 │   │   ├── calculator/                # Main calculator interface
-│   │   ├── layout.tsx                 # App layout
 │   │   └── page.tsx                   # Home page with uploader
-│   ├── components/
-│   │   ├── FileUploader.tsx           # File upload component
-│   │   ├── DataPreview.tsx            # Data preview table
-│   │   ├── ColumnMapper.tsx           # Column mapping interface
-│   │   ├── PricingResults.tsx         # Results display
-│   │   └── CostBreakdown.tsx          # Cost breakdown component
-│   ├── contexts/
-│   │   └── CalculatorContext.tsx      # State management
-│   ├── hooks/
-│   │   └── useSpreadsheetUpload.ts    # Upload hook
-│   ├── lib/
-│   │   ├── api/                       # Azure API integration
-│   │   └── parsers/                   # Spreadsheet parsing
-│   ├── types/
-│   │   └── index.ts                   # TypeScript definitions
-│   └── utils/
-│       ├── constants.ts               # Azure regions & constants
-│       └── helpers.ts                 # Utility functions
-└── package.json                       # Dependencies & scripts
-```
-
-## API Integration
-
-```typescript
-import { azureClient } from '@/lib/api';
-
-// Get VM prices
-const vmPrices = await azureClient.getVMPrices('eastus', 'linux');
-
-// Get storage prices
-const storagePrices = await azureClient.getStoragePrices('eastus', 'standard-ssd');
+│   ├── components/                    # React components
+│   ├── contexts/                      # State management
+│   ├── hooks/                         # Custom hooks
+│   ├── lib/                          # Core logic & API integration
+│   ├── types/                        # TypeScript definitions
+│   └── utils/                        # Utility functions
+├── scripts/
+│   └── setup-vercel-env.sh          # Environment setup helper
+└── vercel.json                       # Vercel configuration
 ```
 
 ## Available Scripts

@@ -48,6 +48,7 @@ next-env.d.ts
 data/
 plans/
 .cursor/
+/scripts/setup-vercel-vars.sh
 
 # pulumi
 setup-backend.sh

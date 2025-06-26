@@ -5,7 +5,6 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "build:lambda": "mkdir -p .lambda && cp lambda-handler-simple.js .lambda/lambda-handler.js && cp lambda-package.json .lambda/package.json && cd .lambda && npm install --production",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
@@ -18,7 +17,6 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-dropzone": "^14.3.8",
-    "serverless-http": "^3.2.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
