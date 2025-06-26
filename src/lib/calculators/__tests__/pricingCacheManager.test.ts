@@ -436,7 +436,7 @@ describe('PricingCacheManager - Core Functionality', () => {
             ...mockStoragePrices[0],
             armRegionName: region,
             retailPrice: basePrice + (i * 0.01),
-            meterName: `${storageType.toUpperCase()} P${i+1}0`,
+            meterName: `${(storageType || 'standard-hdd').toUpperCase()} P${i+1}0`,
             skuName: `P${i+1}0`
           })));
         });

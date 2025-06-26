@@ -121,7 +121,17 @@ describe('Type Definitions', () => {
         region: 'Location',
         os: 'Operating System',
         hoursToRun: 'Runtime Hours',
-        storageCapacity: 'Storage GB'
+        storageCapacity: 'Storage GB',
+        hostname: null,
+        cpuCount: null,
+        ramCapacity: null,
+        applicationGroup: null,
+        matchType: null,
+        confidenceScore: null,
+        environment: null,
+        fqdn: null,
+        ipAddresses: null,
+        vmFamily: null
       }
 
       expect(mockMapping.region).toBe('Location')
@@ -146,7 +156,17 @@ describe('Type Definitions', () => {
           region: null,
           os: null,
           hoursToRun: null,
-          storageCapacity: null
+          storageCapacity: null,
+          hostname: null,
+          cpuCount: null,
+          ramCapacity: null,
+          applicationGroup: null,
+          matchType: null,
+          confidenceScore: null,
+          environment: null,
+          fqdn: null,
+          ipAddresses: null,
+          vmFamily: null
         },
         pricingResults: null,
         isCalculating: false,

@@ -313,8 +313,8 @@ describe('PricingAggregator - Core Functionality', () => {
 
     it('should handle worst-case scenario (no deduplication)', () => {
       // Simulate worst case where every row has unique requirements
-      const uniqueVMRequirements = new Set();
-      const uniqueStorageRequirements = new Set();
+      const uniqueVMRequirements = new Set<string>();
+      const uniqueStorageRequirements = new Set<string>();
       
       // 50 unique VM requirements and 50 unique storage requirements
       for (let i = 0; i < 50; i++) {
