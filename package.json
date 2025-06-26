@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "build:lambda": "next build && cp lambda-handler.js .next/standalone/ && cp package.json .next/standalone/",
+    "build:lambda": "mkdir -p .lambda && cp lambda-handler-simple.js .lambda/lambda-handler.js && cp lambda-package.json .lambda/package.json && cd .lambda && npm install --production",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",

@@ -1,7 +1,7 @@
 const serverless = require("serverless-http");
 
 // Import the Next.js server from the standalone build
-const server = require("./.next/standalone/server.js");
+const server = require("./server.js");
 
 // Create the Lambda handler by wrapping the Next.js server with serverless-http
 const handler = serverless(server);

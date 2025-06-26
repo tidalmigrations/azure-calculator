@@ -20,6 +20,9 @@
 # production
 /build
 
+# lambda deployment
+/.lambda/
+
 # misc
 .DS_Store
 *.pem
